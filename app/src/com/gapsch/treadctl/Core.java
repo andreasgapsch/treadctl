@@ -778,7 +778,12 @@ public class Core implements Runnable {
     }
 
     /** Fotosperre: solange files/nostart existiert (von Werkzeugen per root gesetzt), laeuft das Band nie an. */
-    boolean photoLock() { try { return new File(ctx.getFilesDir(), "nostart").exists(); } catch (Throwable e) { return false; } }
+    /** Gilt hoechstens 2 h: ein vergessener Testriegel (z. B. ADB danach weg) sperrt das Band nie dauerhaft. */
+    boolean photoLock() {
+        try { File f = new File(ctx.getFilesDir(), "nostart"); if (!f.exists()) return false;
+              if (Math.abs(System.currentTimeMillis() - f.lastModified()) > 2 * 3600000L) { f.delete(); log("fotosperre abgelaufen", 0); return false; }
+              return true; } catch (Throwable e) { return false; }
+    }
     boolean armed() { long d = clock() - armAt; armAt = 0; if (photoLock()) { log("fotosperre", 0); return false; } return d >= 2500 && d <= 15000; }
 
     void manual(String from) { if (!"programm".equals(from) && !"zone".equals(from)) manualAt = clock(); }
