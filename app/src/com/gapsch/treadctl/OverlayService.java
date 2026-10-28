@@ -81,6 +81,7 @@ public class OverlayService extends Service {
         wm = (WindowManager) getSystemService(WINDOW_SERVICE);
         buildRoot();
         buildWatcher();
+        buildEdge();
         buildTopBar();
         poll();
         ui.postDelayed(shift, 120000);
@@ -126,15 +127,17 @@ public class OverlayService extends Service {
             switch (e.getActionMasked()) {
                 case MotionEvent.ACTION_DOWN: y0 = e.getRawY(); x0 = e.getRawX(); drag = false; break;
                 case MotionEvent.ACTION_MOVE: { float dy = e.getRawY() - y0, dx = e.getRawX() - x0;
-                    if (Math.abs(dy) > dp(24) && Math.abs(dy) > Math.abs(dx) * 1.5f) { drag = true; return true; } break; }
+                    if (Math.abs(dy) > dp(24) && Math.abs(dy) > Math.abs(dx) * 1.5f) { drag = true; return true; }
+                    if ("side".equals(mode) && dx < -dp(24) && Math.abs(dx) > Math.abs(dy) * 1.5f) { drag = true; return true; } break; }
             }
             return false;
         }
         @Override public boolean onTouchEvent(MotionEvent e) {
             if (e.getActionMasked() == MotionEvent.ACTION_DOWN) { y0 = e.getRawY(); x0 = e.getRawX(); return true; }
             if (e.getActionMasked() == MotionEvent.ACTION_UP) {
-                float dy = e.getRawY() - y0;
-                if (Math.abs(dy) > dp(24)) swipe(dy < 0); else if ("mini".equals(mode) || "ghost".equals(mode)) swipe(true);
+                float dy = e.getRawY() - y0, dx = e.getRawX() - x0;
+                if ("side".equals(mode) && dx < -dp(24) && Math.abs(dx) > Math.abs(dy)) swipe(false);   // Seitenleiste nach links wegwischen
+                else if (Math.abs(dy) > dp(24)) swipe(dy < 0); else if ("mini".equals(mode) || "ghost".equals(mode)) swipe(true);
                 drag = false; return true;
             }
             return true;
@@ -176,6 +179,21 @@ public class OverlayService extends Service {
             PixelFormat.TRANSLUCENT);
         lp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL; lp.y = dp(14);
         try { wm.addView(root, lp); } catch (Throwable e) {}
+    }
+
+    /** Unsichtbarer Streifen am linken Rand (nur in Apps mit eigener Anzeige): nach rechts wischen oder tippen zeigt die Seitenleiste. */
+    View edge; WindowManager.LayoutParams elp;
+    void buildEdge() {
+        edge = new View(this);
+        edge.setOnTouchListener(new View.OnTouchListener() { float x0; public boolean onTouch(View v, MotionEvent e) {
+            if (e.getActionMasked() == MotionEvent.ACTION_DOWN) x0 = e.getRawX();
+            else if (e.getActionMasked() == MotionEvent.ACTION_UP) { float dx = e.getRawX() - x0; if (dx > dp(20) || Math.abs(dx) < dp(8)) swipe(true); }
+            return true; } });
+        elp = new WindowManager.LayoutParams(dp(9), dp(320), WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, PixelFormat.TRANSLUCENT);
+        elp.gravity = Gravity.LEFT | Gravity.CENTER_VERTICAL;
+        edge.setVisibility(View.GONE);
+        try { wm.addView(edge, elp); } catch (Throwable e) {}
     }
 
     /** 1x1-Fenster, das jede Beruehrung auf dem Bildschirm mitbekommt (fuer den Bildschirmschoner). */
@@ -368,6 +386,8 @@ public class OverlayService extends Service {
         // Dienst weg: Pille immer zeigen, auch ueber der eigenen Oberflaeche (ihr STOP geht direkt auf den Herstellerbus)
         boolean show = "nodaemon".equals(mode) || (!hiddenByUi && (running || pref("showPill", true) || "err".equals(mode)));
         root.setVisibility(show ? View.VISIBLE : View.GONE);
+        // linker Wischstreifen nur, solange in einer App mit eigener Anzeige nichts zu sehen ist
+        if (edge != null) { int ev = show && "ghost".equals(mode) ? View.VISIBLE : View.GONE; if (edge.getVisibility() != ev) edge.setVisibility(ev); }
     }
 
     void update() {

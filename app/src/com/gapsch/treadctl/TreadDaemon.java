@@ -22,6 +22,7 @@ public class TreadDaemon extends Service {
     HrBle hrBle;
     MediaWatch media;
     BleProbe probe;
+    android.net.wifi.WifiManager.WifiLock wifiLock;
     FtmsServer ftms;
     FanControl fan;
 
@@ -38,6 +39,12 @@ public class TreadDaemon extends Service {
         } });
         startForegroundSafe();
         Token.create(this);
+        // WLAN ohne Stromsparmodus: sonst antwortet die Konsole verzoegert oder zeitweise gar nicht (adb, Apps, Updates)
+        try {
+            android.net.wifi.WifiManager wm = (android.net.wifi.WifiManager) getApplicationContext().getSystemService(WIFI_SERVICE);
+            wifiLock = wm.createWifiLock(android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF, "treadctl:wlan");
+            wifiLock.setReferenceCounted(false); wifiLock.acquire();
+        } catch (Throwable e) { Log.w(T, "wlan-sperre: " + e); }
         core = new Core(this);
         Thread t = new Thread(core, "core"); t.setPriority(Thread.MAX_PRIORITY); t.start();
         new KeyReader(core).start();   // Tasten und Drehregler der Konsole
