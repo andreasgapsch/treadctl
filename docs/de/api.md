@@ -155,6 +155,13 @@ von der Konsole selbst an (`lan: false`); `lan: true` öffnet es für Apps im WL
   `keepJht: true` lässt ihn laufen (startet ihn wieder).
 - Werbung: ein einziger Werbesatz (das Funkmodul MT7663 meldet keine Mehrfachwerbung), nach jeder Verbindung neu
   gestartet, damit Uhr und App gleichzeitig verbinden können.
+- **Funkmodul ESP32** (`UsbBridge`, Firmware in `esp32/`): steckt ein ESP32-S3 am nativen USB (303A:1001), übernimmt
+  es Bluetooth; das eigene Bluetooth-FTMS der Konsole geht aus, der Name der Konsole wird zurückgesetzt. So sehen auch
+  Apps auf der Konsole (Kinomap kann kein DIRCON) ein normales Bluetooth-Laufband. Zeilenprotokoll über USB (Konsole →
+  Board: `H` Name, `V` lesbarer Wert, `N` Meldung, `I` Antwort Steuerpunkt, `P` Lebenszeichen jede Sekunde; Board →
+  Konsole: `R` bereit, `C`/`X` verbunden/getrennt, `S` Abo, `W` Befehl am Steuerpunkt). Das Board entscheidet nichts:
+  Befehle gehen durch `Core.appCmd`; ohne Lebenszeichen 3 s antwortet es selbst «fehlgeschlagen» und meldet
+  «Steuerung verloren». Zustand in `GET /api/ftms`: `radio` (`konsole` oder `esp32`), `espFw`.
 
 ## Medien (Mini-Player)
 

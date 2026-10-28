@@ -43,7 +43,7 @@ public class FtmsServer {
     static final ComponentName JHT = new ComponentName("com.jht.atsoul.nezuko", "com.jht.atsoul.service.gattserver.GATTServerService");
     final Context ctx; final Core core; final SharedPreferences prefs;
     volatile boolean on, ctl, keepJht, dirconOn, lan; volatile String name; volatile float maxS, maxI;
-    final Dircon dircon;
+    final Dircon dircon; final UsbBridge usb;
     volatile String state = "aus"; volatile boolean advertising;
     BluetoothGattServer server; BluetoothLeAdvertiser adv; String oldName;
     BluetoothGattCharacteristic cTread, cTrain, cCtrl, cMach, cRsc;
@@ -57,7 +57,7 @@ public class FtmsServer {
         on = prefs.getBoolean("on", false); ctl = prefs.getBoolean("ctl", false); keepJht = prefs.getBoolean("keepJht", false);
         name = prefs.getString("name", "Tread Control"); maxS = prefs.getFloat("maxS", 14f); maxI = prefs.getFloat("maxI", 10f);
         dirconOn = prefs.getBoolean("dircon", false); lan = prefs.getBoolean("lan", false);
-        dircon = new Dircon(c, this); dircon.lan = lan;
+        dircon = new Dircon(c, this); dircon.lan = lan; usb = new UsbBridge(c, this);
         applyCore();
     }
     void applyCore() { core.appCtl = on && ctl; core.appMaxS = maxS; core.appMaxI = maxI; }
@@ -72,6 +72,7 @@ public class FtmsServer {
         loop = new Thread(new Runnable() { public void run() { run1(); } }, "ftms"); loop.start();
         if (on) restart();
         if (on && dirconOn) dircon.start(name);
+        usb.start();   // ESP32-S3 am USB: uebernimmt Bluetooth, sobald es steckt
     }
 
     /** Hersteller-FTMS anhalten (Werbung aus, Dienst stoppen) bzw. auf Wunsch wieder starten. Gleiche UID, darum erlaubt. */
@@ -99,6 +100,7 @@ public class FtmsServer {
         close(null);
         if (!on) { state = "aus"; return; }
         jhtGuard();
+        if (usb.connected) { restoreName(); state = "Funkmodul ESP32"; return; }   // Bluetooth kommt vom Board
         try {
             BluetoothAdapter a = BluetoothAdapter.getDefaultAdapter();
             if (a == null || !a.isEnabled()) { state = "Bluetooth aus"; return; }
@@ -223,10 +225,18 @@ public class FtmsServer {
         return FtmsData.response(cp.op, res);
     }
     /** Meldung an alle Abonnenten, Bluetooth und DIRCON. */
+    /** Funkmodul ESP32 gesteckt oder entfernt: eigenes Bluetooth der Konsole aus bzw. wieder an. */
+    void onRadio(final boolean esp) {
+        new Thread(new Runnable() { public void run() { restart(); if (esp) usb.hello(); } }).start();
+    }
+    void restoreName() {
+        try { BluetoothAdapter a = BluetoothAdapter.getDefaultAdapter(); if (oldName != null && a != null) { a.setName(oldName); oldName = null; } } catch (Throwable e) {}
+    }
     void emit(UUID u, byte[] v) {
         BluetoothGattCharacteristic c = FtmsData.TREAD.equals(u) ? cTread : FtmsData.STATUS_TRAIN.equals(u) ? cTrain : FtmsData.MACHINE.equals(u) ? cMach : FtmsData.RSC_MEAS.equals(u) ? cRsc : null;
         if (c != null && server != null) toAll(c, v);
         dircon.notifyAll(u, v);
+        usb.notifyAll(u, v);
     }
 
     byte[] read(UUID u) {
@@ -259,9 +269,10 @@ public class FtmsServer {
         while (core.alive) {
             sleep(1000); n++;
             try {
-                if (n % 30 == 0) { if (!keepJht) jhtGuard(); if (on && server == null && !state.startsWith("Bluetooth aus")) restart(); }
+                usb.ping(); if (n % 10 == 0 && usb.connected) usb.hello();   // Lebenszeichen und lesbare Werte fuer das Board
+                if (n % 30 == 0) { if (!keepJht) jhtGuard(); if (on && server == null && !usb.connected && !state.startsWith("Bluetooth aus")) restart(); }
                 boolean any; synchronized (subs) { any = server != null && !subs.isEmpty(); }
-                if (!any && !dircon.hasClients()) continue;
+                if (!any && !dircon.hasClients() && !usb.hasClients()) continue;
                 String st = core.st;
                 emit(FtmsData.TREAD, FtmsData.treadmill(core.speed, core.dist, core.incline, core.kcal, core.hr, core.hrOk, core.elapsed));
                 emit(FtmsData.RSC_MEAS, FtmsData.rsc(Core.LAEUFT.equals(st) ? core.speed : 0, core.dist));
@@ -289,6 +300,8 @@ public class FtmsServer {
             for (Dircon.Client c : dircon.clients) cl.put(new JSONObject().put("addr", String.valueOf(c.s.getInetAddress())).put("name", c.who).put("wlan", true));
             o.put("clients", cl);
             o.put("dircon", dirconOn); o.put("lan", lan); o.put("dirconState", dircon.state);
+            o.put("radio", usb.connected ? "esp32" : "konsole"); if (usb.connected) o.put("espFw", usb.fw);
+            for (Map.Entry<Integer, String> e : usb.clients.entrySet()) cl.put(new JSONObject().put("addr", e.getValue()).put("name", "Bluetooth (ESP32)").put("esp", true));
             return o.toString();
         } catch (Throwable e) { return Core.err(String.valueOf(e)); }
     }
@@ -306,6 +319,7 @@ public class FtmsServer {
             .putFloat("maxS", maxS).putFloat("maxI", maxI).putBoolean("dircon", dirconOn).putBoolean("lan", lan).apply();
         applyCore();
         if (keepJht && !wasKeep) jhtRestore();
+        if (usb.connected) new Thread(new Runnable() { public void run() { usb.hello(); } }).start();   // Name, Grenzen, Steuerung ans Board
         if (on != wasOn || (on && !name.equals(wasName))) { final boolean o = on; new Thread(new Runnable() { public void run() { if (o) restart(); else { close("aus"); stopAdv(); } } }).start(); }
         boolean dcNow = on && dirconOn, dcWas = wasOn && wasDc;
         if (dcNow != dcWas || (dcNow && (!name.equals(wasName) || lan != wasLan))) { final boolean d = dcNow; final String n = name; new Thread(new Runnable() { public void run() { if (d) dircon.start(n); else dircon.stop(); } }).start(); }

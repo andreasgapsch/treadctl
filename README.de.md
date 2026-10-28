@@ -170,7 +170,7 @@ Gestaltungsentscheid lief über den Besitzer.
 | Thema | Stand |
 |---|---|
 | **FTMS (Fitness Machine Service)** | Gebaut, im Test: FTMS und Laufsensor über das eigene Funkmodul der Konsole, DIRCON (FTMS über WLAN) für Apps auf der Konsole selbst, Steuerung durch Apps nur auf Wunsch und mit Grenzen (siehe [api.md](docs/de/api.md)). Der FTMS-Dienst des Herstellers wird angehalten, weil er an den Sicherheitsregeln vorbeigeht. Offen: Tests mit Garmin, Kinomap und Zwift am Band. |
-| **ESP32-Lösung** | Nur bei Bedarf, in zwei Schritten: ein ESP32-S3 am USB als eigenes Bluetooth-Funkmodul (falls das Funkmodul der Konsole nicht zuverlässig genug ist oder für Apps ohne DIRCON); langfristig die direkte Steuerung über die serielle Leitung zum Motorboard (Weg 2 in [control-paths.md](docs/de/control-paths.md)), unabhängig von der Herstellersoftware. Die eigene Schutzlogik des Motorboards und der Sicherheitsschlüssel bleiben erhalten. |
+| **ESP32-Lösung** | Schritt 1 gebaut, Test mit dem Board offen: ein ESP32-S3 (z. B. Olimex ESP32-S3-DevKit-Lipo) am USB der Konsole als eigenes Bluetooth-Funkmodul, Firmware in `esp32/`; nötig für Kinomap auf der Konsole, das kein DIRCON kann. Schritt 2 langfristig: direkte Steuerung über die serielle Leitung zum Motorboard (Weg 2 in [control-paths.md](docs/de/control-paths.md)), unabhängig von der Herstellersoftware. Die eigene Schutzlogik des Motorboards und der Sicherheitsschlüssel bleiben erhalten. |
 | **Bandtests der neuesten Funktionen** | Gerätetasten nach der Umstellung auf alle Eingabegeräte, Tasten am Ventilator. |
 
 ## Voraussetzungen

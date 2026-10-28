@@ -168,7 +168,7 @@ decision went through the owner.
 | Topic | Status |
 |---|---|
 | **FTMS (Fitness Machine Service)** | Built, in testing: FTMS and footpod from the console's own radio, DIRCON (FTMS over Wi-Fi) for apps on the console itself, app control opt-in with limits (see [api.md](docs/en/api.md)). The manufacturer's own FTMS server is stopped because it bypasses the safety rules. Open: tests with Garmin, Kinomap and Zwift at the belt. |
-| **ESP32 solution** | Only if needed, two steps: an ESP32-S3 on USB as a separate Bluetooth radio (if the console radio proves unreliable or for apps without DIRCON support); in the long run direct control over the serial line to the motor board (path 2 in [control-paths.md](docs/en/control-paths.md)), independent of the manufacturer software. The motor board's own safety logic and the safety key stay in place. |
+| **ESP32 solution** | Step 1 built, hardware test pending: an ESP32-S3 (e.g. Olimex ESP32-S3-DevKit-Lipo) on the console's USB as a separate Bluetooth radio, firmware in `esp32/`; needed for Kinomap on the console, which has no DIRCON. Step 2 in the long run: direct control over the serial line to the motor board (path 2 in [control-paths.md](docs/en/control-paths.md)), independent of the manufacturer software. The motor board's own safety logic and the safety key stay in place. |
 | **Belt tests of the newest features** | Hardware keys after the switch to reading all input devices, fan buttons. |
 
 ## Requirements

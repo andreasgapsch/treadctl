@@ -155,6 +155,13 @@ console itself (`lan: false`); `lan: true` opens it to apps in the Wi-Fi (PC, Ap
   `keepJht: true` keeps it running (starts it again).
 - Advertising: a single advertising set (the MT7663 radio reports no multi-advertising), restarted after every
   connection so that a watch and an app can connect at the same time.
+- **ESP32 radio** (`UsbBridge`, firmware in `esp32/`): when an ESP32-S3 is plugged into the console's USB with its
+  native USB port (303A:1001), it takes over Bluetooth; the console's own Bluetooth FTMS switches off and the console
+  name is restored. Apps on the console itself (Kinomap has no DIRCON) then see an ordinary Bluetooth treadmill. Line
+  protocol over USB (console → board: `H` name, `V` readable value, `N` notification, `I` control point response,
+  `P` heartbeat every second; board → console: `R` ready, `C`/`X` connected/disconnected, `S` subscription, `W` control
+  point write). The board decides nothing: commands go through `Core.appCmd`; without a heartbeat for 3 s it answers
+  "operation failed" itself and reports "control lost". State in `GET /api/ftms`: `radio` (`konsole` or `esp32`), `espFw`.
 
 ## Media (mini player)
 
