@@ -33,6 +33,8 @@ public class Icon extends View {
             case "down": path.moveTo(6, 9); path.lineTo(12, 15); path.lineTo(18, 9); line(cv, 12, 4, 12, 15); cv.drawPath(path, p); break;
             case "warn": path.moveTo(12, 3); path.lineTo(22, 21); path.lineTo(2, 21); path.close(); line(cv, 12, 10, 12, 15); line(cv, 12, 18, 12, 18.5f); cv.drawPath(path, p); break;
             case "up": path.moveTo(6, 15); path.lineTo(12, 9); path.lineTo(18, 15); cv.drawPath(path, p); break;
+            case "back": path.moveTo(15, 5); path.lineTo(8, 12); path.lineTo(15, 19); cv.drawPath(path, p); break;
+            case "music": cv.drawCircle(7, 18, 3, p); cv.drawCircle(18, 16, 3, p); path.moveTo(10, 18); path.lineTo(10, 5); path.lineTo(21, 3); path.lineTo(21, 16); cv.drawPath(path, p); break;
             case "stop": p.setStyle(Paint.Style.FILL); cv.drawRoundRect(new RectF(6, 6, 18, 18), 2, 2, p); break;
             case "play": p.setStyle(Paint.Style.FILL); path.moveTo(7, 4); path.lineTo(20, 12); path.lineTo(7, 20); path.close(); cv.drawPath(path, p); break;
             case "inc": path.moveTo(3, 20); path.lineTo(21, 20); path.lineTo(21, 7); path.close(); cv.drawPath(path, p); break;

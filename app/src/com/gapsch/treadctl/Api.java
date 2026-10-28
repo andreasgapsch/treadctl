@@ -35,6 +35,12 @@ public class Api {
         try { return cmd(c, new JSONObject().put("c", name)); } catch (Exception e) { return false; }
     }
 
+    /** Mini-Player: {a: toggle|next|prev|volUp|volDown}. */
+    public static boolean media(Context c, JSONObject body) {
+        String s = http("POST", "/media/cmd", body.toString(), Token.read(c));
+        try { return s != null && new JSONObject(s).optBoolean("ok"); } catch (Exception e) { return false; }
+    }
+
     /** Ventilator: {a: auto|off|level, v}. */
     public static boolean fan(Context c, JSONObject body) {
         String s = http("POST", "/fan", body.toString(), Token.read(c));

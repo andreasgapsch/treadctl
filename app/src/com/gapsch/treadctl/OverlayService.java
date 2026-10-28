@@ -234,11 +234,16 @@ public class OverlayService extends Service {
 
     String errKey() { return s == null ? "" : (s.optDouble("speed") < 0.3) + "/" + s.optInt("pulled"); }
     String lastErrKey = "";
+    /** Apps mit eigener Anzeige von Tempo und Steigung: statt der Pille nur die schmale Seitenleiste (Zurueck, Musik, STOP). */
+    static final java.util.Set<String> OWN_DISPLAY = new java.util.HashSet<String>(java.util.Arrays.asList("com.kinomap.training"));
+    boolean ownDisplay() { return s != null && OWN_DISPLAY.contains(s.optString("top", "")) && pref("sideInApps", true); }
+
     String wantMode() {
         if (Core.clock() - lastOk > 3000) return "nodaemon";
         String st = st();
         if ("FEHLER".equals(st)) return "err";
         if ("PAUSE".equals(st)) return "pause";
+        if (ownDisplay() && ("LAEUFT".equals(st) || "BEREIT".equals(st)) && (s == null || s.optInt("pulled") != 1)) return "side";
         if (!"LAEUFT".equals(st)) hiddenRun = false;
         if ("LAEUFT".equals(st)) return hiddenRun ? "mini" : expanded ? "exp" : "col";
         if (s != null && s.optInt("pulled") == 1) return "key";
@@ -398,6 +403,14 @@ public class OverlayService extends Service {
                 if (fanShown) add(fanBtn(), 4);
                 add(pb("graph", WHITE, new Runnable() { public void run() { toggleGraph(); } }), 4);
                 break; }
+            case "side": {
+                // Schmale Leiste am linken Rand: zurueck zu Tread Control, Musik Wiedergabe/Pause, STOP (wirkt wie in der Pille)
+                pill.setOrientation(LinearLayout.VERTICAL); pill.setPadding(dp(6), dp(8), dp(6), dp(8));
+                pill.addView(pb("back", WHITE, new Runnable() { public void run() { openUi("/"); } }));
+                View mu = pb("music", WHITE, new Runnable() { public void run() { new Thread(new Runnable() { public void run() { try { Api.media(OverlayService.this, new JSONObject().put("a", "toggle")); } catch (Throwable e) {} } }).start(); } });
+                pill.addView(mu, lpWrap(0, dp(8), 0, 0));
+                if ("LAEUFT".equals(st())) pill.addView(sideStop(), lpWrap(0, dp(8), 0, 0));
+                break; }
             case "col": {
                 LinearLayout.LayoutParams w = new LinearLayout.LayoutParams(dp(180), ViewGroup.LayoutParams.WRAP_CONTENT);
                 cTime = cell("clock", 0xFFCFD2DC, "ZEIT", 0xFFA4A9BB); firstLab = cTime[3]; pill.addView(rv(cTime[0]), new LinearLayout.LayoutParams(w));
@@ -521,9 +534,9 @@ public class OverlayService extends Service {
     /** Mini-Knopf am linken Rand, sonst mittig. */
     void place() {
         try {
-            boolean mini = "mini".equals(mode);
-            int g = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, y = baseY();
-            if (lp.gravity != g || lp.y != y) { lp.gravity = g; lp.x = 0; lp.y = y; wm.updateViewLayout(root, lp); }
+            boolean mini = "mini".equals(mode), side = "side".equals(mode);
+            int g = side ? Gravity.LEFT | Gravity.CENTER_VERTICAL : Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, y = side ? 0 : baseY(), x = side ? dp(10) : 0;
+            if (lp.gravity != g || lp.y != y || lp.x != x) { lp.gravity = g; lp.x = x; lp.y = y; wm.updateViewLayout(root, lp); }
             root.setAlpha(mini ? 0.92f : 1f);
             orderChildren();
             if (!mini) pill.setOnClickListener(null);
@@ -763,6 +776,19 @@ public class OverlayService extends Service {
             else if (e.getActionMasked() == MotionEvent.ACTION_UP || e.getActionMasked() == MotionEvent.ACTION_CANCEL) press(v, false);
             return true; } });
         return b;
+    }
+
+    /** Kleiner runder STOP fuer die Seitenleiste: reagiert schon beim Druecken, wie der grosse. */
+    View sideStop() {
+        FrameLayout b = new FrameLayout(this); b.setBackground(round(HR, dp(30), 0));
+        b.addView(new Icon(this, "stop", 0xFF2B0509), new FrameLayout.LayoutParams(dp(26), dp(26), Gravity.CENTER));
+        b.setContentDescription("STOP");
+        b.setOnTouchListener(new View.OnTouchListener() { public boolean onTouch(View v, MotionEvent e) {
+            if (e.getActionMasked() == MotionEvent.ACTION_DOWN) { press(v, true); touch(); doStop(); }
+            else if (e.getActionMasked() == MotionEvent.ACTION_UP || e.getActionMasked() == MotionEvent.ACTION_CANCEL) press(v, false);
+            return true; } });
+        FrameLayout w = new FrameLayout(this); w.addView(b, new FrameLayout.LayoutParams(dp(56), dp(56)));
+        return w;
     }
 
     View bigBtn(String txt, String icon, int bg, int fg, final Runnable r) {
@@ -1043,7 +1069,7 @@ public class OverlayService extends Service {
     // ---------------- Einbrennschutz ----------------
     /** Alle 2 min um wenige Pixel verschieben, unmerklich. */
     final Runnable shift = new Runnable() { public void run() {
-        try { lp.x = rnd.nextInt(9) - 4; lp.y = baseY() + rnd.nextInt(7) - 3; wm.updateViewLayout(root, lp); } catch (Throwable e) {}
+        try { boolean sd = "side".equals(mode); lp.x = (sd ? dp(10) : 0) + rnd.nextInt(9) - 4; lp.y = (sd ? 0 : baseY()) + rnd.nextInt(7) - 3; wm.updateViewLayout(root, lp); } catch (Throwable e) {}
         ui.postDelayed(this, 120000);
     }};
 
