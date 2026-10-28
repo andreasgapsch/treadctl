@@ -278,7 +278,12 @@
       // nur die Kennung: Profil, Art und Hoehenquelle liest der Dienst aus der Bibliothek (Befehl bleibt klein)
       TX.cmd('program', { p: { type: 'route', id: r.id, target: cfg.target, mode: cfg.mode, scale: cfg.scale } }, true).then(function (res) {
         // abgewiesen: dieselben Werte nicht erneut senden (erst nach einer Aenderung); Fehler nur anzeigen
-        if (!res.ok) { if (api.state && api.state.st === 'BEREIT') setPlanErr(res.error || 'Fehler'); return; }
+        if (!res.ok) {
+          if (api.state && api.state.st === 'BEREIT') setPlanErr(res.error || 'Fehler');
+          // Verbindungsproblem (nicht abgewiesen): nach 3 s erneut senden; echte Ablehnungen erst nach einer Aenderung
+          if (TX.transportErr(res)) setTimeout(function () { if (sentKey === k) sentKey = ''; }, 3000);
+          return;
+        }
         setPlanErr(''); api.poke(true);
       });
     }

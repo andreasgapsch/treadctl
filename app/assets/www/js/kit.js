@@ -276,7 +276,7 @@
       e.preventDefault(); stop(); pid = e.pointerId; n = 0;
       try { btn.setPointerCapture(e.pointerId); } catch (x) { /* egal */ }
       btn.classList.add('held'); fn(0);
-      t1 = setTimeout(function () { t2 = setInterval(function () { if (btn.disabled) { stop(); return; } fn(++n); }, 250); }, 500);
+      t1 = setTimeout(function () { t2 = setInterval(function () { if (btn.disabled || !btn.isConnected) { stop(); return; } fn(++n); }, 250); }, 500);   // Knopf entfernt (Dialog zu): nicht weiterzaehlen
     });
     ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(function (ev) { btn.addEventListener(ev, function (e) { if (pid === null || e.pointerId === pid) stop(); }); });
     // Tastatur (Enter/Leertaste) erzeugt click mit detail 0

@@ -21,15 +21,22 @@ public class VendorServices {
         "com.jht.atsoul.service.matrixcomm.MatrixCommService", "com.jht.atsoul.service.WirelessCastingService",
         "com.jht.soul.service.NetworkService" };
 
+    /** Fuer die regelmaessige Pruefung nur die fuer Band und Standby noetigen (die uebrigen duerfen sich selbst beenden). */
+    static final String[] CRITICAL = { "com.jht.atsoul.service.hal.LCBService", "com.jht.atsoul.service.hal.HalService",
+        "com.jht.atsoul.service.ui.UiService", "com.jht.atsoul.service.matrixcomm.MatrixCommService" };
+    /** Nur wenn Tread Control der Startbildschirm ist (sonst startet sie der Herstellerstart selbst). */
+    static boolean wanted(Context c) { try { return c.getSharedPreferences("core", Context.MODE_PRIVATE).getBoolean("home", true); } catch (Throwable e) { return true; } }
+    static int ensure(Context c) { return ensure(c, CLS); }
     /** Fehlende Herstellerdienste starten; Rueckgabe: Anzahl gestarteter. */
-    static int ensure(Context c) {
+    static int ensure(Context c, String[] list) {
+        if (!wanted(c)) return 0;
         int n = 0;
         try {
             ActivityManager am = (ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE);
             java.util.Set<String> running = new java.util.HashSet<String>();
             @SuppressWarnings("deprecation") java.util.List<ActivityManager.RunningServiceInfo> l = am.getRunningServices(300);
-            if (l != null) for (ActivityManager.RunningServiceInfo i : l) if (i.service != null && i.started) running.add(i.service.getClassName());
-            for (String k : CLS) {
+            if (l != null) for (ActivityManager.RunningServiceInfo i : l) if (i.service != null && i.pid > 0 && i.restarting == 0) running.add(i.service.getClassName());   // auch nur gebundene zaehlen; «wird neu gestartet» (Android wartet mit Abstand) gilt als fehlend
+            for (String k : list) {
                 if (running.contains(k)) continue;
                 try { c.startForegroundService(new Intent().setComponent(new ComponentName(PKG, k))); n++; }
                 catch (Throwable e) { Log.w("TREADCTL", "herstellerdienst " + k + ": " + e); }

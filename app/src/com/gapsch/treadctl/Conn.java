@@ -32,8 +32,10 @@ public class Conn implements Runnable {
             if (parts.length < 2) { send(400, "text/plain", "bad".getBytes()); return; }
             method = parts[0]; path = parts[1];
             int q = path.indexOf('?'); if (q >= 0) { query = path.substring(q + 1); path = path.substring(0, q); }
-            String h;
+            String h; int nh = 0; long t0 = android.os.SystemClock.elapsedRealtime();
             while ((h = readLine(in)) != null && h.length() > 0) {
+                // hoechstens 64 Kopfzeilen und 5 s fuer den ganzen Kopf: eine tropfende Verbindung haelt keinen Thread fest
+                if (++nh > 64 || android.os.SystemClock.elapsedRealtime() - t0 > 5000) { send(400, "text/plain", "kopf".getBytes()); return; }
                 int c = h.indexOf(':'); if (c < 0) continue;
                 String k = h.substring(0, c).trim().toLowerCase(), v = h.substring(c + 1).trim();
                 if (k.equals("host")) host = v;

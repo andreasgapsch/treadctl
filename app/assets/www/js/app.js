@@ -132,6 +132,7 @@
   function cdOk(st) {
     if (cdWhat === 'hw') return !!(st && !api.offline && st.cd > 0);
     if (!st || api.offline || st.st !== CD_NEED[cdWhat]) return false;
+    if ((cdWhat === 'start' || cdWhat === 'resume') && st.speed > 0.3) { TX.toast('Band läuft noch aus, gleich nochmals'); return false; }   // wie der Dienst
     return cdWhat !== 'start' || (st.pulled === 0 && st.safe === 1);
   }
   function cdStop() {
@@ -145,6 +146,7 @@
      Vollbild-Countdown, sendet aber weder arm noch start; ABBRECHEN sendet stop. */
   function hwCountdown(st) {
     var on = !!(st && !api.offline && st.cd > 0);
+    if (on && TX.saverStop) TX.saverStop();   // Start ueber Taste oder App: Countdown und ABBRECHEN muessen sichtbar sein
     if (!on) { if (cdl && cdWhat === 'hw') cdStop(); return; }
     if (cdl && cdWhat !== 'hw') return;
     if (!cdl) {
@@ -186,6 +188,7 @@
   function countdown(what, note) {
     var st = api.state;
     if (cdl) return;
+    if (TX.saverStop) TX.saverStop();
     cdWhat = what;
     if (!cdOk(st)) return;
     TX.audioUnlock();
@@ -219,7 +222,7 @@
   document.addEventListener('keydown', function (e) { if (cdl && (e.key === 'Escape' || e.key === 'MediaStop')) cdCancel(); });
 
   /* ---------- Laufende ---------- */
-  var prevSt = null, lastBusy = null, lastBusyHist = [];
+  var prevSt = null, lastBusy = null, lastBusyHist = [], lastBusyAt = 0;
   // Kurzer Lauf: unter 2 min oder unter 0.2 km wird nachgefragt, Vorgabe Verwerfen
   TX.SHORT = { sec: 120, km: 0.2 };
   TX.isShort = function (rec) { return rec.elapsed < TX.SHORT.sec || rec.dist < TX.SHORT.km; };
@@ -230,21 +233,22 @@
     if (TX.run(rec.id)) { if (nav) TX.go('#/summary/' + encodeURIComponent(rec.id)); return; }
     var keep = function () { TX.saveRun(rec); if (nav) TX.go('#/summary/' + encodeURIComponent(rec.id)); else TX.toast('Lauf gespeichert'); };
     if (!TX.isShort(rec)) { keep(); return; }
-    shortDlg(rec, function (k) { if (k) keep(); else { TX.toast('Kurzer Lauf verworfen'); if (nav) TX.go('#/'); } });
+    shortDlg(rec, function (k, nv) { nav = nav || nv; if (k) keep(); else { TX.toast('Kurzer Lauf verworfen'); if (nav) TX.go('#/'); } }, nav);
   }
   TX.finishRun = finishRun;
-  var sdl = null, sdlId = '', sdlCb = null, sdlT = 0;
+  var sdl = null, sdlId = '', sdlCb = null, sdlT = 0, sdlNav = false;
   function shortDone(k) {
     if (!sdl) return;
-    var cb = sdlCb; clearTimeout(sdlT);
-    sdl.parentNode.removeChild(sdl); sdl = null; sdlId = ''; sdlCb = null;
-    if (cb) cb(k);
+    var cb = sdlCb, nv = sdlNav; clearTimeout(sdlT);
+    sdl.parentNode.removeChild(sdl); sdl = null; sdlId = ''; sdlCb = null; sdlNav = false;
+    if (cb) cb(k, nv);
   }
-  function shortDlg(rec, cb) {
-    if (sdl && sdlId === rec.id) return;
+  function shortDlg(rec, cb, nav) {
+    // derselbe Lauf aus zwei Wegen (Pille und Zustandswechsel): ein Dialog, aber die Navigation des zweiten Aufrufs gilt mit
+    if (sdl && sdlId === rec.id) { sdlNav = sdlNav || !!nav; return; }
     shortDone(false);
     sdl = document.createElement('div'); sdl.className = 'modal blur'; sdl.setAttribute('role', 'alertdialog'); sdl.setAttribute('aria-modal', 'true');
-    sdl.setAttribute('aria-labelledby', 'sdh'); sdl.setAttribute('aria-describedby', 'sdd'); sdlId = rec.id; sdlCb = cb;
+    sdl.setAttribute('aria-labelledby', 'sdh'); sdl.setAttribute('aria-describedby', 'sdd'); sdlId = rec.id; sdlCb = cb; sdlNav = !!nav;
     sdl.innerHTML = '<div class="dlg sdlg"><div class="ico" style="color:var(--inc)">' + I('warn') + '</div><h2 id="sdh">Kurzer Lauf</h2>' +
       '<div class="mut" id="sdd" style="margin-top:6px">' + TX.time(rec.elapsed) + ' · ' + TX.f2(rec.dist) + ' km. Läufe unter 2 min oder unter 0.2 km werden nur auf Wunsch gespeichert.</div>' +
       '<div class="acts"><button class="btn lite" data-s="drop">' + I('x') + ' Verwerfen</button><button class="btn ghost" data-s="keep">' + I('check') + ' Trotzdem speichern</button></div>' +
@@ -277,12 +281,16 @@
   function watchEnd(st) {
     if (!st) return;
     var s = st.st, busy = s === 'LAEUFT' || s === 'PAUSE' || s === 'FEHLER';
-    if (busy && st.elapsed > 0) { lastBusy = st; lastBusyHist = api.hist; }
+    if (busy && st.elapsed > 0) { if (!lastBusy) lastBusyAt = Date.now() - st.elapsed * 1000; lastBusy = st; lastBusyHist = api.hist; }
     if (prevSt && prevSt !== 'BEREIT' && s === 'BEREIT' && lastBusy && !TX.pz.ending) {
       // anderswo beendet (Pille, Zeitablauf, Quittung): Zusammenfassung vom Dienst holen
-      var lb = lastBusy, lh = lastBusyHist, nav = TRAIN[curName] && prevSt !== 'FEHLER';
+      var lb = lastBusy, lh = lastBusyHist, nav = TRAIN[curName] && prevSt !== 'FEHLER', since = lastBusyAt;
       lastBusy = null;
-      TX.fetchSummary().then(function (sum) { finishRun(TX.makeRun(lb, lh, sum), nav); });
+      // Zusammenfassung nur, wenn sie zu diesem Lauf gehoert (nach einem Neustart des Dienstes liefert er sonst die des vorigen);
+      // einmal nachfragen, falls die erste Abfrage scheitert (sonst doppelter Eintrag beim naechsten Laden)
+      var take = function (sum) { return sum && sum.ts >= since - 60000 ? sum : null; };
+      TX.fetchSummary().then(function (sum) { return take(sum) || new Promise(function (r) { setTimeout(function () { TX.fetchSummary().then(function (s2) { r(take(s2)); }); }, 1500); }); })
+        .then(function (sum) { finishRun(TX.makeRun(lb, lh, sum), nav); });
     }
     if (s === 'BEREIT' && !TX.pz.ending) lastBusy = null;
     prevSt = s;
@@ -302,7 +310,7 @@
   /* ---------- Banner: Fehler und Verbindung ---------- */
   var errKey = '';
   function banners(st) {
-    var k = api.offline ? 'off' : st && st.st === 'FEHLER' ? 'err|' + st.err : '';
+    var k = api.offline ? 'off' : st && st.st === 'FEHLER' ? 'err|' + st.err + '|' + TX.errHint(st) : '';
     if (k === errKey) return;
     errKey = k;
     if (k === 'off') alerts.innerHTML = '<div class="alert off" role="alert"><span class="ico">' + I('warn') + '</span><div class="tx">Keine Verbindung zum Laufband-Dienst<small>Steuerung gesperrt. Neuer Versuch läuft automatisch.</small></div></div>';
@@ -364,7 +372,7 @@
   document.addEventListener('pointerdown', function () { if (!saverOn) lastTouch = Date.now(); }, true);
   document.addEventListener('keydown', function () { lastTouch = Date.now(); if (saverOn) saverStop(); }, true);
   setInterval(function () {
-    var st = api.state, ok = st && st.st === 'BEREIT' && !api.offline;
+    var st = api.state, ok = st && st.st === 'BEREIT' && !(st.cd > 0) && !api.offline && !(TX.media && TX.media.st && TX.media.st.playing);   // nie ueber einem Countdown, nicht bei Wiedergabe
     if (!saverOn && ok && Date.now() - lastTouch >= saverMs()) saverStart();
     if (saverOn && !ok) saverStop();
   }, 1000);
@@ -458,9 +466,13 @@
       if (b.getAttribute('data-x') === 'ok') {
         TX.saveProfile({ name: (m.querySelector('#pname').value || '').trim() || pr.name, hf: hf, kg: kg });
         var svm = SAVER_OPT[svI]; TX.setPref('saverMin', svm); TX.native.setPref('saverMin', String(svm)); TX.native.setPref('saver', String(svm > 0));
-        if (home !== home0) TX.api.cmd('home', { on: home }).then(function (r) { if (!r || !r.ok) TX.toast('Startbildschirm nicht gesetzt: ' + (r && r.error || 'Dienst nicht erreicht')); });
-        if (erp >= 0 && erp !== erp0) TX.api.cmd('standby', { i: erp }).then(function (r) { if (!r || !r.ok) TX.toast('Standby nicht gesetzt: ' + (r && r.error || 'Dienst nicht erreicht')); });
-        TX.sendProfile().then(function (r) { TX.toast(r && r.ok ? 'Profil gespeichert' : 'Profil gespeichert, Dienst nicht erreicht'); });
+        // eine Meldung fuer alles (sonst ueberschreibt «Profil gespeichert» einen Fehler beim Startbildschirm oder Standby)
+        var why = function (r) { return r && r.error || 'Dienst nicht erreicht'; };
+        Promise.all([
+          home !== home0 ? TX.api.cmd('home', { on: home }).then(function (r) { return r && r.ok ? '' : 'Startbildschirm nicht gesetzt: ' + why(r); }) : '',
+          erp >= 0 && erp !== erp0 ? TX.api.cmd('standby', { i: erp }).then(function (r) { return r && r.ok ? '' : 'Standby nicht gesetzt: ' + why(r); }) : '',
+          TX.sendProfile().then(function (r) { return r && r.ok ? '' : 'Profil nur hier gespeichert, Dienst nicht erreicht'; })
+        ]).then(function (e) { e = e.filter(Boolean); TX.toast(e.length ? e.join(' · ') : 'Gespeichert'); });
         route();
       }
       m.parentNode.removeChild(m);

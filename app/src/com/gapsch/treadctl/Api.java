@@ -20,7 +20,7 @@ public class Api {
     /** Zustand lesen, null bei Fehler oder Antwort ohne Zustand. */
     public static JSONObject state(boolean hist) {
         // Lebenszeichen (Token) nur, wenn der UI-Thread der Pille lebt: ein eingefrorener UI-Thread darf den Watchdog nicht stillhalten
-        boolean alive = System.currentTimeMillis() - uiBeat < 3000;
+        boolean alive = Core.clock() - uiBeat < 3000;   // monoton: Uhrsprung haelt keinen eingefrorenen UI-Thread fuer lebendig
         String s = http("GET", "/state" + (hist ? "?hist=1" : ""), null, ctx == null || !alive ? null : Token.read(ctx));
         try { JSONObject o = s == null ? null : new JSONObject(s); return o != null && o.optString("st").length() > 0 ? o : null; } catch (Exception e) { return null; }   // ohne gueltigen Zustand: wie keine Antwort
     }

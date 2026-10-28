@@ -379,6 +379,33 @@ public class CoreSzenarien {
             CoreSzenarien q = new CoreSzenarien(); q.run(0.4); q.c.topPkg = "com.kinomap.training";
             t("Ohne erlaubte App-Steuerung kein Start", q.c.appCmd(FtmsData.OP_START, Double.NaN, "App") == FtmsData.RES_NOT_PERMITTED && q.c.hwStartAt == 0, "");
         }
+        { // 34 Befunde aus dem Review: Schluessel im Countdown, NaN, App-STOP im Countdown der Pille, Fehler raeumt auf, Lease
+            CoreSzenarien s = new CoreSzenarien(); s.run(0.4); s.c.appCtl = true; s.c.topPkg = "com.kinomap.training"; s.c.appStartRejAt = 0;
+            s.c.appCmd(FtmsData.OP_START, Double.NaN, "App"); boolean cd = s.c.hwStartAt > 0;
+            s.b.pulled = true; s.run(0.6); s.b.pulled = false; s.run(4);
+            t("Schlüssel im Countdown gezogen und wieder gesteckt: kein Start", cd && "BEREIT".equals(s.c.st) && s.c.hwStartAt == 0 && !s.b.running, s.c.st);
+            s.c.armAt = Core.clock(); s.b.pulled = true; s.run(0.6); s.b.pulled = false; s.run(0.6);
+            t("Schlüssel nach START in der Pille: Freigabe verworfen", s.c.armAt == 0 && s.cmd("{\"c\":\"start\"}").contains("Countdown fehlt"), "");
+            s.cmd("{\"c\":\"speed\",\"v\":\"NaN\"}"); s.cmd("{\"c\":\"incline\",\"v\":\"NaN\"}");
+            t("Tempo und Steigung NaN werden ignoriert", !Float.isNaN(s.c.tSpeed) && !Float.isNaN(s.c.tIncl), s.c.tSpeed + " / " + s.c.tIncl);
+            String z = s.cmd("{\"c\":\"program\",\"p\":{\"type\":\"zones\",\"s0\":\"NaN\",\"i\":-10}}");
+            t("Zonenprogramm mit NaN-Start und negativer Steigung: gültige Sollwerte", z.contains("true") && s.c.tSpeed >= 6 && s.c.tIncl == 0, z + " " + s.c.tSpeed + "/" + s.c.tIncl);
+            String iv = s.cmd("{\"c\":\"program\",\"p\":{\"type\":\"interval\",\"segs\":[{\"d\":60,\"s\":\"NaN\"}]}}");
+            t("Intervall mit NaN-Tempo abgewiesen", iv.contains("false"), iv);
+            String pf = s.cmd("{\"c\":\"profile\",\"weight\":\"NaN\"}");
+            t("Gewicht NaN: Zustand bleibt lesbar", pf.contains("true") && !Float.isNaN(s.c.weight) && new JSONObject(s.c.stateJson(false)).has("st"), "" + s.c.weight);
+            s.cmd("{\"c\":\"clear\"}"); s.c.armAt = Core.clock(); s.c.appCmd(FtmsData.OP_STOP, 1, "App");
+            t("STOP aus einer App verwirft den Countdown der Pille", s.c.armAt == 0 && s.cmd("{\"c\":\"start\"}").contains("Countdown fehlt"), "");
+            CoreSzenarien e = new CoreSzenarien(); e.cmd("{\"c\":\"speed\",\"v\":8}"); e.startRun(); e.run(40);
+            e.c.endTimer = 3; e.c.rampTarget = 9; e.b.pulled = true; e.run(1);
+            t("Fehler räumt Programmende, Rampe und Countdown ab", "FEHLER".equals(e.c.st) && e.c.endTimer == -1 && e.c.rampTarget < 0 && e.c.hwStartAt == 0, e.c.st + " " + e.c.endTimer);
+            e.b.pulled = false; e.run(15);
+            CoreSzenarien l = new CoreSzenarien(); l.cmd("{\"c\":\"speed\",\"v\":8}"); l.startRun(); l.run(25); l.c.appCtl = true; l.c.manualAt = 0; l.c.appCmdAt = 0;
+            l.c.appCmd(FtmsData.OP_SPEED, 12, "App"); l.run(1); l.lease = false; l.run(75);
+            float mx = 0; for (int i = 0; i < 20; i++) { l.run(1); mx = Math.max(mx, l.c.tSpeed); }
+            t("Ohne Oberfläche: App-Rampe hebt das Tempo nicht wieder über 4 km/h", mx <= 4.05f, "max " + mx);
+            android.app.ActivityManager.running.clear(); android.app.ActivityManager.stopped.clear();
+        }
         { // 33 Band steht, obwohl LAEUFT (vom Motorboard gestoppt): nach 8 s Pause statt «läuft»; Startseite umstellen
             CoreSzenarien s = new CoreSzenarien(); s.cmd("{\"c\":\"speed\",\"v\":6}"); s.startRun(); s.run(30);
             boolean ran = "LAEUFT".equals(s.c.st);

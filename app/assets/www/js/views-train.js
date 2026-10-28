@@ -222,7 +222,7 @@
         if (s === 'BEREIT' && planSegs && (!pr || pr.name !== plan.name) && !loadTried && !TX.api.offline) {
           loadTried = true;
           var prog = TX.toProgram(plan);
-          TX.cmd('program', { p: prog }).then(function (r) { if (r.ok) TX.setActive(plan, prog); });
+          TX.cmd('program', { p: prog }).then(function (r) { if (r.ok) TX.setActive(plan, prog); else if (TX.transportErr(r)) setTimeout(function () { loadTried = false; }, 3000); });   // Verbindung: nochmals versuchen
         }
         // Abschnittsliste: geladenes Programm, sonst Vorschau der Vorlage
         var sg = pr ? (pr.segs && pr.segs.length ? pr.segs : (planSegs && pr.name === plan.name ? planSegs : null)) : planSegs;
@@ -393,7 +393,8 @@
           var k = b.getAttribute('data-st'), d = +b.getAttribute('data-d');
           if (k === 'dur') cfg.dur = TX.clamp(cfg.dur + d * (n > 8 ? 300 : 60), 300, 14400);
           else cfg[k] = TX.clamp(TX.r1(cfg[k] + d * 0.5), 0.8, 16);
-          if (cfg.sMax < cfg.sMin + 0.5) { if (k === 'sMin') cfg.sMax = Math.min(16, cfg.sMin + 0.5); else cfg.sMin = cfg.sMax - 0.5; }
+          if (cfg.sMax < cfg.sMin + 0.5) { if (k === 'sMin') cfg.sMax = Math.min(16, cfg.sMin + 0.5); else cfg.sMin = Math.max(0.8, cfg.sMax - 0.5); }
+          if (cfg.sMax < cfg.sMin + 0.5) cfg.sMax = cfg.sMin + 0.5;   // untere Grenze 0.8 km/h, Abstand mindestens 0.5
           ['dur', 'sMin', 'sMax'].forEach(function (kk) { setT(main, 'v-' + kk, fmtCfg(kk)); });
           if (k !== 'dur') { touched = true; if (TX.api.state) view.update(TX.api.state); }
           // geladene Zone mit neuen Grenzen nachladen

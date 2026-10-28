@@ -70,7 +70,7 @@ public class TreadDaemon extends Service {
         while (core.alive) {
             try {
                 Thread.sleep(5000);
-                if (++k % 12 == 0) { int n = VendorServices.ensure(this); if (n > 0) core.log("herstellerdienste neu gestartet: " + n, 0); }   // jede Minute
+                if (++k % 2 == 0) { int n = VendorServices.ensure(this, VendorServices.CRITICAL); if (n > 0) core.log("herstellerdienste neu gestartet: " + n, 0); }   // alle 10 s (stirbt der Datendienst, nimmt Android die anderen mit)
                 if (!OverlayService.isRunning(this)) startForegroundService(new Intent(this, OverlayService.class));
                 boolean use = !Core.BEREIT.equals(core.st) || core.speed > 0.3f;
                 if (use && (wake == null || !wake.isHeld())) {

@@ -606,6 +606,9 @@
     return withTimeout(fetch('/api/bt/audio', { cache: 'no-store', signal: ctl ? ctl.signal : undefined }).then(function (r) { return r.json(); }), 3000, ctl).catch(function () { return null; });
   };
 
+  /** Antwort ohne Entscheid des Dienstes (keine Verbindung, Zeitueberschreitung, leere Antwort): erneut versuchen ist sinnvoll. */
+  TX.transportErr = function (r) { return !r || r.ok === false && (!r.error || /Verbindung|erreich|antwortet|Zeit|leer|abgebrochen/i.test(r.error)); };
+
   /* ---------- Native Bruecke ---------- */
   var iconCache = {};
   TX.native = {

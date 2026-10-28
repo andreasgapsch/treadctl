@@ -17,7 +17,10 @@ public class Httpd implements Runnable {
     final int port;
     volatile boolean run = true;
     ServerSocket ss;
-    final ThreadPoolExecutor pool = new ThreadPoolExecutor(4, 48, 30, TimeUnit.SECONDS, new SynchronousQueue<Runnable>());
+    final ThreadPoolExecutor pool = new ThreadPoolExecutor(4, 64, 30, TimeUnit.SECONDS, new SynchronousQueue<Runnable>());
+    /** Ausweichpool, wenn der Hauptpool voll ist (z. B. viele haengende Verbindungen einer fehlerhaften App): kurze Lesefrist,
+     *  damit ein STOP trotzdem durchkommt und Bummler schnell wieder Platz machen. */
+    final ThreadPoolExecutor spare = new ThreadPoolExecutor(0, 16, 10, TimeUnit.SECONDS, new SynchronousQueue<Runnable>());
 
     public Httpd(TreadDaemon d, int port) { this.d = d; this.port = port; }
 
@@ -30,7 +33,10 @@ public class Httpd implements Runnable {
                     Socket s = ss.accept();
                     s.setSoTimeout(1500);
                     try { pool.execute(new Conn(d, s)); }
-                    catch (java.util.concurrent.RejectedExecutionException re) { try { s.close(); } catch (Exception e) {} }   // voll: diese Verbindung ablehnen, der Server laeuft weiter
+                    catch (java.util.concurrent.RejectedExecutionException re) {
+                        try { s.setSoTimeout(400); spare.execute(new Conn(d, s)); }
+                        catch (Exception e2) { try { s.close(); } catch (Exception e) {} }   // auch der Ausweichpool voll: diese Verbindung ablehnen
+                    }
                 }
             } catch (Exception e) {
                 try { if (ss != null) ss.close(); } catch (Exception e2) {}   // vor dem Neuversuch freigeben, sonst ist der Port belegt
@@ -42,6 +48,6 @@ public class Httpd implements Runnable {
     public void stop() {
         run = false;
         try { if (ss != null) ss.close(); } catch (Exception e) {}
-        pool.shutdownNow();
+        pool.shutdownNow(); spare.shutdownNow();
     }
 }

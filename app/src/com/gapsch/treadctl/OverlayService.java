@@ -53,7 +53,7 @@ public class OverlayService extends Service {
     // Zustand
     // lastOk mit Schonfrist: beim Start der Pille nicht sofort «Dienst nicht erreichbar»
     JSONObject s; long lastOk = Core.clock() + 7000; String mode = ""; boolean expanded = true, hiddenByUi = false, graphOn = false;
-    String pop = null; long lastTouch = System.currentTimeMillis(), lastInteract = System.currentTimeMillis();
+    String pop = null; long lastTouch = Core.clock(), lastInteract = Core.clock();
     long modeAt = 0; TextView pauseInfo, weiterSub; View weiterBtn;
     String lastNote = ""; JSONArray hist; boolean readyOpen = false;
     // Anzeigen
@@ -66,7 +66,7 @@ public class OverlayService extends Service {
     static boolean isRunning(Context c) {
         try {
             ActivityManager am = (ActivityManager) c.getSystemService(ACTIVITY_SERVICE);
-            for (ActivityManager.RunningServiceInfo i : am.getRunningServices(100))
+            for (ActivityManager.RunningServiceInfo i : am.getRunningServices(500))
                 if (i.service.getClassName().equals(OverlayService.class.getName())) return true;
         } catch (Throwable e) {}
         return false;
@@ -99,7 +99,7 @@ public class OverlayService extends Service {
         if (i != null && i.getAction() != null) {
             String a = i.getAction();
             if ("hide".equals(a)) { hiddenByUi = true; apply(); }
-            else if ("show".equals(a)) { hiddenByUi = false; expanded = true; lastInteract = System.currentTimeMillis(); apply(); update(); }
+            else if ("show".equals(a)) { hiddenByUi = false; expanded = true; lastInteract = Core.clock(); apply(); update(); }
             else if ("pref".equals(a)) { prefs.edit().putString(i.getStringExtra("k"), i.getStringExtra("v")).apply(); apply();
                 if ("hideBar".equals(i.getStringExtra("k"))) { final boolean on = !"false".equals(i.getStringExtra("v"));
                     new Thread(new Runnable() { public void run() { try { Api.cmd(OverlayService.this, new JSONObject().put("c", "hideBar").put("on", on)); } catch (Throwable e) {} } }).start(); } }
@@ -112,7 +112,10 @@ public class OverlayService extends Service {
         try { wm.removeView(root); } catch (Throwable e) {}
         try { wm.removeView(watcher); } catch (Throwable e) {}
         hideSaver();
+        try { wm.removeView(topBar); } catch (Throwable e) {}
         super.onDestroy();
+        // Lesethreads der STOP-Taste und Abfrage laufen sonst im Prozess weiter; ein Neustart des Dienstes baut alles neu auf
+        android.os.Process.killProcess(android.os.Process.myPid());
     }
 
     boolean pref(String k, boolean def) { String v = prefs.getString(k, ""); return v.length() == 0 ? def : v.equals("1") || v.equals("true"); }
@@ -183,7 +186,7 @@ public class OverlayService extends Service {
     /** 1x1-Fenster, das jede Beruehrung auf dem Bildschirm mitbekommt (fuer den Bildschirmschoner). */
     void buildWatcher() {
         watcher = new View(this);
-        watcher.setOnTouchListener(new View.OnTouchListener() { public boolean onTouch(View v, MotionEvent e) { lastTouch = System.currentTimeMillis(); keepAwake(); return false; } });
+        watcher.setOnTouchListener(new View.OnTouchListener() { public boolean onTouch(View v, MotionEvent e) { lastTouch = Core.clock(); keepAwake(); return false; } });
         WindowManager.LayoutParams w = new WindowManager.LayoutParams(1, 1, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL | WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT);
@@ -200,7 +203,7 @@ public class OverlayService extends Service {
                 final JSONObject st = st0 != null ? st0 : Api.state((graphOn && (k % 12 == 0)) || (k % 10 == 0 && needProf()));
                 if (st != null) { lastOk = Core.clock(); if (st.has("hist")) hist = st.optJSONArray("hist"); keepProf(st); }
                 else if (st0 == null) reviveCore();
-                ui.post(new Runnable() { public void run() { Api.uiBeat = System.currentTimeMillis(); if (st != null) s = st; update(); } });
+                ui.post(new Runnable() { public void run() { Api.uiBeat = Core.clock(); if (st != null) s = st; update(); } });
                 if ("player".equals(pop) && k % 3 == 0) { media = Api.mediaState(OverlayService.this); ui.post(new Runnable() { public void run() { fillPlayer(); } }); }   // Player offen: Titel nachfuehren
                 k++;
                 // Takt: 400 ms im Gebrauch (Lauf, Pause, Fehler, Countdown, Band bewegt sich); in BEREIT 1 s, versteckt hinter der eigenen Oberflaeche 2 s
@@ -254,7 +257,7 @@ public class OverlayService extends Service {
         // Laufapps zeigen Tempo, Steigung und Lauf selbst: im Stand, im Lauf und in der Pause nichts; hochwischen zeigt Menue und Musik,
         // nach 8 s ohne Beruehrung wieder weg (mit offenem Player nach 15 s). Gezogener Schluessel bleibt sichtbar.
         if (ownDisplay() && (s == null || s.optInt("pulled") != 1)) {
-            if (dockOpen && System.currentTimeMillis() - lastInteract > (pop != null ? 15000 : 8000)) { dockOpen = false; closeAbove(); }
+            if (dockOpen && Core.clock() - lastInteract > (pop != null ? 15000 : 8000)) { dockOpen = false; closeAbove(); }
             return dockOpen ? "dock" : "ghost";
         }
         dockOpen = false;
@@ -263,7 +266,7 @@ public class OverlayService extends Service {
         if ("LAEUFT".equals(st)) return hiddenRun ? "mini" : expanded ? "exp" : "col";
         if (s != null && s.optInt("pulled") == 1) return "key";
         // im Stand nichts zu sehen: von unten hochwischen zeigt die Pille mit START, nach 8 s ohne Beruehrung wieder weg
-        if (readyOpen && System.currentTimeMillis() - lastInteract < 8000) return "ready";
+        if (readyOpen && Core.clock() - lastInteract < 8000) return "ready";
         readyOpen = false;
         return "ghost";
     }
@@ -387,16 +390,16 @@ public class OverlayService extends Service {
     }
 
     void update() {
-        if ("player".equals(pop) && System.currentTimeMillis() - lastInteract > 15000) closeAbove();   // Player schliesst nach 15 s ohne Beruehrung
+        if ("player".equals(pop) && Core.clock() - lastInteract > 15000) closeAbove();   // Player schliesst nach 15 s ohne Beruehrung
         String m = wantMode();
         // automatisches Einklappen nur waehrend des Laufs
-        if ("exp".equals(m) && pref("autoCollapse", true) && pop == null && !graphOn && !bannerOn && System.currentTimeMillis() - lastInteract > 6000) { expanded = false; m = "col"; }
-        if ("key".equals(mode) && "ghost".equals(m) && !ownDisplay()) { readyOpen = true; lastInteract = System.currentTimeMillis(); m = "ready"; }
+        if ("exp".equals(m) && pref("autoCollapse", true) && pop == null && !graphOn && !bannerOn && Core.clock() - lastInteract > 6000) { expanded = false; m = "col"; }
+        if ("key".equals(mode) && "ghost".equals(m) && !ownDisplay()) { readyOpen = true; lastInteract = Core.clock(); m = "ready"; }
         if ("err".equals(m) && "err".equals(mode) && !errKey().equals(lastErrKey)) mode = "";
         if ("err".equals(m)) lastErrKey = errKey();
         boolean fs = s != null && s.optJSONObject("fan") != null;
         if ("exp".equals(m) && "exp".equals(mode) && fs != fanShown && pop == null && !graphOn && !"LAEUFT".equals(st())) { build(); place(); }   // im Lauf nie umbauen: STOP bleibt am Platz
-        if (!m.equals(mode)) { if (!bannerOn) noteView.setVisibility(View.GONE); if (cdTask != null) cancelCountdownSilent(); mode = m; pop = null; modeAt = System.currentTimeMillis(); build(); place(); }
+        if (!m.equals(mode)) { if (!bannerOn) noteView.setVisibility(View.GONE); if (cdTask != null) cancelCountdownSilent(); mode = m; pop = null; modeAt = Core.clock(); build(); place(); }
         checkPkg();
         apply();
         fill();
@@ -468,7 +471,7 @@ public class OverlayService extends Service {
                 add(pb("menu", WHITE, new Runnable() { public void run() { openUi("/"); } }), 0);
                 cIncl = tapCell("none", INC, "STEIGUNG", INC, "incline"); fixW(cIncl, 200); add(cIncl[0], 8);
                 final View sb = bigBtn("START", "play", GO, 0xFF03210F, null); ((LinearLayout) sb).setMinimumWidth(dp(200));
-                sb.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { if (System.currentTimeMillis() - modeAt < 1000) return; touch(); countdown((LinearLayout) sb, "start"); } });
+                sb.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { if (Core.clock() - modeAt < 1000) return; touch(); countdown((LinearLayout) sb, "start"); } });
                 add(sb, 12);
                 cSpd = tapCell("none", SPD, "START-TEMPO", SPD, "speed"); fixW(cSpd, 200); add(cSpd[0], 12);
                 add(pb("apps", WHITE, new Runnable() { public void run() { openUi("/apps"); } }), 8);
@@ -478,7 +481,7 @@ public class OverlayService extends Service {
                 add(pb("menu", WHITE, new Runnable() { public void run() { openUi(home()); } }), 0);
                 cTime = cell("clock", 0xFFCFD2DC, "PAUSE · GESAMT", HR); fixW(cTime, 164); add(cTime[0], 4);
                 final View w = bigBtn("WEITER", "play", GO, 0xFF03210F, null);
-                w.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { if (System.currentTimeMillis() - modeAt < 1000) return; touch(); countdown((LinearLayout) w, "resume"); } });
+                w.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { if (Core.clock() - modeAt < 1000) return; touch(); countdown((LinearLayout) w, "resume"); } });
                 ((LinearLayout) w).setMinimumWidth(dp(252));
                 weiterBtn = w; weiterSub = new TextView(this); weiterSub.setTextColor(0xFF03210F); weiterSub.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12); weiterSub.setVisibility(View.GONE);
                 { // Symbol und Text in einer Zeile, der Hinweis darunter
@@ -731,7 +734,7 @@ public class OverlayService extends Service {
     /** Ist-Wert als zweite Zeile, Platz bleibt reserviert, damit nichts springt. */
     void istLine(TextView[] t, boolean run, double ist, double soll) {
         if (t.length < 5) return;
-        long now = System.currentTimeMillis(); Long since = (Long) t[4].getTag();
+        long now = Core.clock(); Long since = (Long) t[4].getTag();
         boolean dev = run && Math.abs(ist - soll) > 0.2;
         if (!dev) t[4].setTag(null); else if (since == null) { t[4].setTag(now); since = now; }
         boolean show = dev && now - since >= 2000;
@@ -826,7 +829,7 @@ public class OverlayService extends Service {
         t.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18); t.setLetterSpacing(.06f); b.addView(t, lpWrap(dp(8), 0, 0, 0));
         b.setMinimumWidth(dp(176)); b.setMinimumHeight(dp(64)); b.setPadding(dp(16), 0, dp(16), 0);
         // Sperre nach Moduswechsel: ein zweiter Tipp auf STOP darf nie WEITER oder START ausloesen
-        if (r != null) b.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { if (System.currentTimeMillis() - modeAt < ("err".equals(mode) ? 1500 : 1000)) return; touch(); r.run(); } });
+        if (r != null) b.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { if (Core.clock() - modeAt < ("err".equals(mode) ? 1500 : 1000)) return; touch(); r.run(); } });
         pressable(b);
         return b;
     }
@@ -884,11 +887,11 @@ public class OverlayService extends Service {
     void press(View v, boolean down) { v.animate().scaleX(down ? .94f : 1f).scaleY(down ? .94f : 1f).alpha(down ? .8f : 1f).setDuration(50).start(); }
 
     // ---------------- Aktionen ----------------
-    void touch() { lastTouch = lastInteract = System.currentTimeMillis(); keepAwake(); }
+    void touch() { lastTouch = lastInteract = Core.clock(); keepAwake(); }
     /** Standby-Zeitgeber der Herstellersoftware neu starten (hoechstens alle 20 s, der Dienst drosselt ebenfalls). */
     long awakeSent;
     void keepAwake() {
-        long t = System.currentTimeMillis(); if (t - awakeSent < 20000) return; awakeSent = t;
+        long t = Core.clock(); if (t - awakeSent < 20000) return; awakeSent = t;
         new Thread(new Runnable() { public void run() { try { Api.cmd(OverlayService.this, new JSONObject().put("c", "touch")); } catch (Throwable e) {} } }).start();
     }
 
@@ -933,7 +936,7 @@ public class OverlayService extends Service {
     void restoreCd() {
         if (cdBtn != null) { ((TextView) cdBtn.getChildAt(1)).setText(cdLabel); ((TextView) cdBtn.getChildAt(1)).setTextColor(cdLabel.equals("START") || cdLabel.equals("WEITER") ? 0xFF03210F : WHITE);
             cdBtn.setBackground(cdBg); cdBtn.setEnabled(true); cdBtn.setAlpha(1f); }
-        if (cdBtn != null && "START".equals(cdLabel)) { final LinearLayout b = cdBtn; b.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { if (System.currentTimeMillis() - modeAt < 1000) return; touch(); countdown(b, "start"); } }); }
+        if (cdBtn != null && "START".equals(cdLabel)) { final LinearLayout b = cdBtn; b.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { if (Core.clock() - modeAt < 1000) return; touch(); countdown(b, "start"); } }); }
         if (statusField != null) { statusField.setBackground(null); statusField.setClickable(false); ((TextView) statusField.getChildAt(0)).setText("■  BAND STEHT"); ((TextView) statusField.getChildAt(0)).setTextColor(0xFFC9CCD8); ((TextView) statusField.getChildAt(1)).setTextColor(0xFFE9C9CC); }
     }
     void cancelCountdown() { if (cdTask == null) return; ui.removeCallbacks(cdTask); cdTask = null; restoreCd(); cmd("stop"); fill(); }
@@ -1166,7 +1169,7 @@ public class OverlayService extends Service {
     final Runnable saverCheck = new Runnable() { public void run() {
         try {
             int min = 5; try { min = Integer.parseInt(prefs.getString("saverMin", "5")); } catch (Exception e) {}
-            boolean idle = System.currentTimeMillis() - lastTouch > min * 60000L;
+            boolean idle = Core.clock() - lastTouch > min * 60000L;
             boolean media = ((AudioManager) getSystemService(AUDIO_SERVICE)).isMusicActive();
             if (media) keepAwake();   // Film oder Musik laeuft: Konsole nicht in den Standby
             boolean ownScreen = s == null || s.optBoolean("bar", true);

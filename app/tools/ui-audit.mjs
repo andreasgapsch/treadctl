@@ -544,7 +544,7 @@ if (!ONLY.length) {
     await p.waitForTimeout(700);
     await p.evaluate(() => { window.TX.sim.direct('start'); window.__txCmdLog.length = 0; });
     await p.waitForTimeout(500);
-    await p.evaluate(() => { window.TX.sim.s.st = 'BEREIT'; });
+    await p.evaluate(() => { window.TX.sim.s.st = 'BEREIT'; window.TX.sim.s.speed = 0; });   // Band steht (START bei auslaufendem Band ist gesperrt, eigener Fall)
     await p.waitForTimeout(450);
     await p.click('.bigbtn');
     await p.waitForTimeout(400);
@@ -942,13 +942,17 @@ if (!ONLY.length) {
     const s = await st(p), t2 = await p.textContent('#alerts');
     return { ok: /Sicherheitsschlüssel/.test(t) && b && s.st === 'BEREIT' && !t2.trim(), d: `«${t.trim().slice(0, 40)}», nach Quittieren ${s.st}` };
   });
-  await flow('Bildschirmschoner: Berührung beendet ihn ohne Klick darunter', async p => {
-    await p.goto(BASE + '?demo=1&saver=1#/run'); await p.waitForTimeout(2300);
+  await flow('Bildschirmschoner: nicht bei Musik, Berührung beendet ihn ohne Klick darunter', async p => {
+    await p.goto(BASE + '?demo=1&saver=1#/run'); await p.waitForTimeout(300);
+    const mus = await p.evaluate(() => !!(window.TX.media && window.TX.media.st && window.TX.media.st.playing));
+    await p.waitForTimeout(1500);
+    const onMus = await p.isVisible('#saver.on');   // Demo spielt Musik: kein Bildschirmschoner
+    await p.evaluate(() => window.TX.media.cmd('toggle')); await p.waitForTimeout(2300);
     const on = await p.isVisible('#saver.on'), pos1 = await p.$eval('#saver .blk', e => e.style.transform);
     const box = await p.$eval('.bigbtn', e => { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
     await p.mouse.click(box.x, box.y); await p.waitForTimeout(900);
     const off = !(await p.isVisible('#saver.on')), l = await log(p);
-    return { ok: on && off && !l.includes('start') && !l.includes('arm') && /translate/.test(pos1), d: `an ${on}, aus ${off}, Befehle [${l}]` };
+    return { ok: !(mus && onMus) && on && off && !l.includes('start') && !l.includes('arm') && /translate/.test(pos1), d: `bei Musik ${onMus ? 'an!' : 'aus'}, an ${on}, aus ${off}, Befehle [${l}]` };
   });
   await flow('Vorlagen: anlegen, bearbeiten (+/-, Block, verschieben), speichern, löschen', async p => {
     await p.goto(BASE + '?demo=1#/plans/edit/neu'); await p.waitForTimeout(900);

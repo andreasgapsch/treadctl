@@ -533,7 +533,7 @@
       // nach Beenden ueber die Pille: gleiche Regeln wie in der Oberflaeche (kurzer Lauf mit Nachfrage, Vorgabe Verwerfen)
       TX.fetchSummary().then(function (sum) {
         if (sum && (sum.elapsed >= 10 || sum.dist >= 0.01)) TX.finishRun(TX.makeRun(null, sum.hist, sum), true);
-        else TX.go('#/summary');
+        else { if (sum) TX.toast('Lauf kürzer als 10 s, nicht gespeichert'); TX.go('#/'); }   // nie den vorigen Lauf als «gespeichert» zeigen
       });
       return { el: root, update: function (st) { TX.updHead(root, st); } };
     }

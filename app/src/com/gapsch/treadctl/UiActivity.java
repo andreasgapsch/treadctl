@@ -71,6 +71,11 @@ public class UiActivity extends Activity {
             @Override public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
                 return !r.getUrl().toString().startsWith("http://127.0.0.1:8765/");
             }
+            // Dienst noch nicht bereit (Start als Startbildschirm vor dem Steuerdienst): nach 1 s neu laden statt Fehlerseite
+            @Override public void onReceivedError(WebView v, android.webkit.WebResourceRequest r, android.webkit.WebResourceError e) {
+                if (r != null && r.isForMainFrame() && loadRetries++ < 30) h.postDelayed(new Runnable() { public void run() { if (wv != null) wv.reload(); } }, 1000);
+            }
+            @Override public void onPageFinished(WebView v, String url) { if (url != null && url.startsWith("http://127.0.0.1:8765/")) loadRetries = 0; }
             @Override public boolean onRenderProcessGone(WebView v, RenderProcessGoneDetail d) {
                 // Renderer abgestuerzt: neu aufbauen statt die App zu beenden, aber begrenzt (keine Endlosschleife) und
                 // nur im Vordergrund (im Hintergrund wuerde die neue Seite neben YouTube weiter abfragen)
@@ -101,8 +106,9 @@ public class UiActivity extends Activity {
         return q != null && q.matches("[a-z0-9=&-]{0,80}") ? "?demo=1" + (q.length() > 0 ? "&" + q : "") : "";
     }
 
+    int loadRetries = 0;
     @Override protected void onNewIntent(Intent i) {
-        super.onNewIntent(i);
+        super.onNewIntent(i); setIntent(i);   // ein Neuaufbau nach Absturz nimmt dann die letzte Route
         if (i != null && !external(i) && i.hasExtra("demo") || wv != null && wv.getUrl() != null && wv.getUrl().contains("demo=1")) {
             if (wv != null) wv.loadUrl("http://127.0.0.1:8765/" + demo(i) + route(i)); return;
         }

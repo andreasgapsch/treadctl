@@ -367,7 +367,8 @@
   // Woche (Montag 0:00) zu einem Zeitpunkt
   TX.weekStart = function (ts) { var d = new Date(ts); d.setHours(0, 0, 0, 0); var wd = (d.getDay() + 6) % 7; d.setDate(d.getDate() - wd); return d.getTime(); };
   TX.weekStats = function (ts) {
-    var ws = TX.weekStart(ts), we = ws + 7 * 864e5, days = [0, 0, 0, 0, 0, 0, 0], n = 0, km = 0, sec = 0;
+    var ws = TX.weekStart(ts), we = new Date(ws), days = [0, 0, 0, 0, 0, 0, 0], n = 0, km = 0, sec = 0;
+    we.setDate(we.getDate() + 7); we = we.getTime();   // Kalenderwoche, auch ueber die Zeitumstellung (23 oder 25 h am Sonntag)
     TX.runs().forEach(function (r) {
       if (r.ts >= ws && r.ts < we) { var wd = (new Date(r.ts).getDay() + 6) % 7; days[wd] += r.dist; n++; km += r.dist; sec += r.elapsed; }
     });

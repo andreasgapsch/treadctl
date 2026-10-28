@@ -119,9 +119,11 @@ public class Core implements Runnable {
         // Erst einen sicheren Messwert haben (bis 10 s), dann ueber Lauf oder Pause entscheiden: ein einzelner Fehlversuch
         // (Herstellerdienst im selben Speicherengpass beendet) darf ein laufendes Band nicht als stehend werten.
         boolean readOk = false; long t0 = clock();
-        while (alive && !readOk && clock() - t0 < 10000) {
+        long waitMs = clock() < 180000 && !snapFile().exists() ? 60000 : 10000;   // kurz nach dem Einschalten starten die Herstellerdienste noch
+        while (alive && !readOk && clock() - t0 < waitMs) {
             try { if (!bus.isConnected()) connect(); read(); readOk = true; }
             catch (Throwable e) { try { Thread.sleep(500); } catch (InterruptedException ie) { return; } }
+            lastTickAt = clock();   // Warten auf den Bus ist kein Haenger
         }
         // Uebernahme: laeuft das Band bereits (z. B. nach Neustart des Dienstes), nicht bei 0 beginnen
         boolean had;
@@ -132,6 +134,7 @@ public class Core implements Runnable {
             bus.reset();
         } else if (speed > 0.3f && watchStopped()) {   // die Wache hat STOP gesendet und neu gestartet: Band laeuft nur aus, nicht uebernehmen
             try { bus.sendEvent(A_STOP); stopSentAt = clock(); } catch (Throwable e) {}
+            lastStopAt = clock(); prevSpeed = speed;   // auch ohne Laufstand: Auslaufen nicht als Start an der Konsole werten
             synchronized (lock) { if (had) { st = PAUSE; pausedAt = clock(); lastStopAt = pausedAt; note = "Nach Neustart angehalten, Weiter startet neu"; } }
             log("nach wache: band laeuft aus", speed);
         } else if (speed > 0.3f) {
@@ -256,7 +259,7 @@ public class Core implements Runnable {
     void hygiene() {
         String pkg = seenTop; long now = clock();
         if (!pkg.equals(hygTop)) { hygTop = pkg; hygSince = now; hygPending = AppHygiene.heavy(pkg); return; }
-        boolean run = LAEUFT.equals(st) || PAUSE.equals(st);
+        boolean run = !BEREIT.equals(st);   // auch FEHLER (Schluessel gezogen im Lauf): Zwift und Kinomap nie mitten im Training schliessen
         if (!hygPending && !run && hygKept && AppHygiene.heavy(pkg)) hygPending = true;   // Lauf vorbei: zurueckgehaltene Apps jetzt schliessen
         if (!hygPending || now - hygSince < 2500) return;
         hygPending = false; hygKept = run;
@@ -291,6 +294,7 @@ public class Core implements Runnable {
     void tick(double dt, long now) throws Exception {
         barGuard(now);
         // Sicherheitsschluessel
+        if (pulled == 1 && (hwStartAt > 0 || armAt > 0)) { hwStartAt = 0; armAt = 0; consoleStopAt = now; note = "Start abgebrochen: Sicherheitsschlüssel gezogen"; log("start abgebrochen (schluessel)", 0); }
         if (pulled == 1 && !FEHLER.equals(st) && !BEREIT.equals(st)) { setError("Sicherheitsschlüssel gezogen"); }
         if (pulled == 1 && BEREIT.equals(st)) err = "Sicherheitsschlüssel gezogen"; else if (BEREIT.equals(st)) err = "";
 
@@ -346,6 +350,7 @@ public class Core implements Runnable {
             // Lebenszeichen der Bedienelemente (Pille oder Oberflaeche); ohne sanft auf Gehtempo
             leaseLost = lastLease > 0 && now - lastLease > 60000;
             if (leaseLost && tSpeed > 4f) {
+                if (rampTarget > 4f) rampTarget = -1;   // eine laufende Rampe (App, Programm) darf das Tempo nicht wieder anheben
                 applySpeed(4f, "watchdog"); note = "Keine Bedienoberfläche erreichbar, Tempo auf 4 km/h"; log("lease", 4f);
             }
             if ("interval".equals(progType)) runInterval(dt);
@@ -476,13 +481,15 @@ public class Core implements Runnable {
 
     // ---------------- Befehle ----------------
     void applySpeed(float v, String from) throws Exception {
+        if (Float.isNaN(v)) return;   // ungueltiger Wert: nichts aendern (Math.max/min lassen NaN durch)
         v = Math.max(S_MIN, Math.min(S_MAX, round1(v)));
-        if (leaseLost && ("programm".equals(from) || "zone".equals(from)) && v > tSpeed) { rampTarget = -1; return; }
+        if (leaseLost && ("programm".equals(from) || "zone".equals(from) || "app".equals(from)) && v > tSpeed) { rampTarget = -1; return; }
         if (holdLeft > 0 && ("programm".equals(from) || "zone".equals(from))) { holdTarget = v; return; }   // Einlaufen: Programm wartet
         tSpeed = v; src = from; lastSet = clock();
         if (LAEUFT.equals(st)) bus.putFloat(A_SPEED, v);
     }
     void applyIncl(float v, String from) throws Exception {
+        if (Float.isNaN(v)) return;
         v = Math.max(0f, Math.min(I_MAX, round1(v)));
         if (leaseLost && "programm".equals(from) && v > tIncl) return;   // ohne Lebenszeichen keine hoehere Steigung
         tIncl = v; src = from;
@@ -501,7 +508,8 @@ public class Core implements Runnable {
 
     void setError(String m) {
         if (!FEHLER.equals(st)) errDuringRun = LAEUFT.equals(st) || PAUSE.equals(st);
-        err = m; st = FEHLER; lastStopAt = clock();
+        err = m; st = FEHLER; lastStopAt = clock(); consoleStopAt = lastStopAt;
+        endTimer = -1; rampTarget = -1; holdLeft = 0; holdTarget = -1; hwStartAt = 0; armAt = 0;   // nichts Anstehendes ueberlebt einen Fehler
         try { bus.sendEvent(A_STOP); stopSentAt = lastStopAt; } catch (Throwable e) {}
         log("fehler " + m, speed);
     }
@@ -523,7 +531,7 @@ public class Core implements Runnable {
     void doStopState(String from) {
         if (LAEUFT.equals(st)) { st = PAUSE; pausedAt = clock(); }
         lastStopAt = clock(); if (!"app".equals(from)) consoleStopAt = lastStopAt;
-        endTimer = -1; rampTarget = -1; holdLeft = 0; holdTarget = -1; hwStartAt = 0; src = from;
+        endTimer = -1; rampTarget = -1; holdLeft = 0; holdTarget = -1; hwStartAt = 0; armAt = 0; src = from;
         if ("app".equals(from)) appLog("stop app"); else log("stop", speed);   // Apps schicken STOP teils zehnmal je Sekunde
     }
 
@@ -562,7 +570,8 @@ public class Core implements Runnable {
                     if (pulled != 0) return err(pulled == 1 ? "Sicherheitsschlüssel gezogen" : "Schlüsselzustand unbekannt");
                     if (safe != 1) return err("Gerät meldet nicht startbereit");
                     if (speed > 0.3f) return err("Band bewegt sich noch");
-                    if (tSpeed < S_MIN) tSpeed = HOLD_SPEED;
+                    if (!(tSpeed >= S_MIN && tSpeed <= S_MAX)) tSpeed = HOLD_SPEED;   // auch NaN
+                    if (!(tIncl >= 0 && tIncl <= I_MAX)) tIncl = 0f;
                     resetRun();
                     new Thread(new Runnable() { public void run() { AppHygiene.trim(ctx); } }).start();   // Speicher fuer Musik und Videos waehrend des Laufs
                     bus.sendEvent(A_START);
@@ -639,7 +648,7 @@ public class Core implements Runnable {
                 if ("hideBar".equals(c)) { hideBar = j.optBoolean("on", true); barShown = null; return ok(); }
                 if ("auto".equals(c)) { auto = j.optBoolean("on", true); manualAt = 0; return ok(); }
                 if ("profile".equals(c)) {
-                    weight = (float) Math.max(35, Math.min(200, j.optDouble("weight", weight)));
+                    double w = j.optDouble("weight", weight); if (!Double.isNaN(w)) weight = (float) Math.max(35, Math.min(200, w));   // NaN zerstoerte sonst jede Zustandsabfrage (JSON)
                     hfmax = Math.max(120, Math.min(230, j.optInt("hfmax", hfmax))); return ok();
                 }
                 return err("unbekannter Befehl");
@@ -659,7 +668,7 @@ public class Core implements Runnable {
     /** Befehl einer App (Steuerpunkt). Nie Start oder Weiter; STOP wirkt immer. Rueckgabe: FtmsData.RES_*. */
     int appCmd(int op, double v, String app) {
         // Apps schicken STOP teils zehnmal je Sekunde: steht das Band, laeuft kein Countdown und ging STOP vor weniger als 1 s raus, genuegt das
-        if (op == FtmsData.OP_STOP && !LAEUFT.equals(st) && speed < 0.3f && hwStartAt == 0 && clock() - stopSentAt < 1000) return FtmsData.RES_OK;
+        if (op == FtmsData.OP_STOP) synchronized (lock) { if (!LAEUFT.equals(st) && speed < 0.3f && hwStartAt == 0 && armAt == 0 && clock() - stopSentAt < 1000) return FtmsData.RES_OK; }
         if (op == FtmsData.OP_STOP) { stopNow("app"); return FtmsData.RES_OK; }
         synchronized (lock) {
             // Start/Weiter: laeuft das Band schon, nur bestaetigen (Apps erwarten Erfolg); sonst nie, der Start bleibt an der Konsole
@@ -760,7 +769,7 @@ public class Core implements Runnable {
         armAt = clock() - 3000;   // der Countdown ist ueber hwStartAt (Takt der Hauptschleife) abgelaufen
         String r;
         try { r = cmd(new JSONObject().put("c", hwResume ? "resume" : "start"), "taste"); } catch (Exception e) { r = err(String.valueOf(e)); }
-        if (!r.contains("\"ok\":true")) { note = "Start über Taste nicht möglich"; log("taste start abgelehnt " + r, 0); }
+        if (!r.contains("\"ok\":true")) { armAt = 0; note = "Start über Taste nicht möglich"; log("taste start abgelehnt " + r, 0); }
     }
 
     /** Tempo erhoeht im Auslaufen nach Programmende: Programm bleibt beendet, das Band laeuft frei weiter. */
@@ -784,14 +793,17 @@ public class Core implements Runnable {
             for (int i = 0; i < a.length(); i++) {
                 JSONObject s = a.getJSONObject(i);
                 double d = s.getDouble("d"), sp = s.getDouble("s"), in = s.optDouble("i", 0);
-                if (d < 5 || d > 7200 || sp < S_MIN || sp > S_MAX || in < 0 || in > I_MAX) throw new Exception("Segment " + (i + 1) + " ausserhalb der Grenzen");
+                if (!(d >= 5 && d <= 7200 && sp >= S_MIN && sp <= S_MAX && in >= 0 && in <= I_MAX)) throw new Exception("Segment " + (i + 1) + " ausserhalb der Grenzen");
                 segStart[i] = t; t += d;
             }
             segs = a; tSpeed = (float) a.getJSONObject(0).getDouble("s"); tIncl = (float) a.getJSONObject(0).optDouble("i", 0);
         } else if ("zones".equals(type)) {
             float sMin = (float) p.optDouble("sMin", 6), sMax = (float) p.optDouble("sMax", 10.5);
-            if (sMin < S_MIN || sMax > 16 || sMin >= sMax) throw new Exception("Tempo-Grenzen ungültig");
-            segs = null; tSpeed = (float) Math.max(sMin, Math.min(sMax, p.optDouble("s0", sMin))); tIncl = (float) Math.min(8, p.optDouble("i", 1));
+            if (!(sMin >= S_MIN && sMax <= 16 && sMin < sMax)) throw new Exception("Tempo-Grenzen ungültig");
+            double s0 = p.optDouble("s0", sMin), i0 = p.optDouble("i", 1);
+            if (!(s0 >= sMin && s0 <= sMax)) s0 = sMin;
+            if (!(i0 >= 0 && i0 <= 8)) i0 = Double.isNaN(i0) || i0 < 0 ? 0 : 8;
+            segs = null; tSpeed = (float) s0; tIncl = (float) i0;
             auto = true;
         } else if ("route".equals(type)) {
             if (p.optJSONArray("prof") == null) {        // nur id: Profil aus der Streckenbibliothek
@@ -807,12 +819,13 @@ public class Core implements Runnable {
             double[] pd = new double[pr.length()], pe = new double[pr.length()];
             for (int i = 0; i < pr.length(); i++) {
                 JSONArray q = pr.getJSONArray(i); pd[i] = q.getDouble(0); pe[i] = q.getDouble(1);
-                if (i > 0 && pd[i] < pd[i - 1]) throw new Exception("Profil nicht aufsteigend");
-                if (pe[i] < -500 || pe[i] > 9000) throw new Exception("Höhe ausserhalb der Grenzen");
+                if (!(pd[i] >= 0 && pd[i] < 1e7) || (i > 0 && !(pd[i] >= pd[i - 1]))) throw new Exception("Profil nicht aufsteigend");
+                if (!(pe[i] >= -500 && pe[i] <= 9000)) throw new Exception("Höhe ausserhalb der Grenzen");
             }
             double sc = p.optDouble("scale", 1.0); if (sc != 0.5 && sc != 1.0) sc = 1.0;
             RoutePlan r;
-            try { r = RoutePlan.build(pd, pe, p.getDouble("target"), !"even".equals(p.optString("mode")), sc, p.optBoolean("trail", false), "gpx".equals(p.optString("hoehe"))); }
+            double tg = p.getDouble("target"); if (!(tg >= 60 && tg <= 172800)) throw new Exception("Zielzeit ungültig");
+            try { r = RoutePlan.build(pd, pe, tg, !"even".equals(p.optString("mode")), sc, p.optBoolean("trail", false), "gpx".equals(p.optString("hoehe"))); }
             catch (IllegalArgumentException e) { throw new Exception(e.getMessage()); }
             rp = r; offS = 0; offI = 0; finishT = -1; segs = null; segIdx = 0; inclIdx = 0; routeFinish = false;
             tSpeed = (float) r.sp[0]; tIncl = (float) r.in[0];
@@ -863,7 +876,8 @@ public class Core implements Runnable {
         try {
             File f = snapFile(); if (!f.exists()) return false;
             JSONObject o = new JSONObject(new String(java.nio.file.Files.readAllBytes(f.toPath()), "UTF-8"));
-            if (System.currentTimeMillis() - o.getLong("ts") > 15 * 60000L) { f.delete(); return false; }
+            long age = System.currentTimeMillis() - o.getLong("ts");
+            if (age > 15 * 60000L || age < -60000L) { f.delete(); return false; }   // zu alt oder aus der Zukunft (Uhr nach Stromausfall falsch)
             JSONObject pr = o.optJSONObject("prog");
             if (pr != null) loadProgram(pr);   // zuerst: laedt und setzt Programmzustand zurueck, danach die Messwerte
             elapsed = o.optDouble("elapsed"); dist = o.optDouble("dist"); kcal = o.optDouble("kcal"); elev = o.optDouble("elev");
@@ -874,6 +888,7 @@ public class Core implements Runnable {
             if (pr != null) {
                 progT = o.optDouble("progT"); segIdx = o.optInt("segIdx", -1); inclIdx = o.optInt("inclIdx", -1);
                 offS = o.optDouble("offS"); offI = o.optDouble("offI"); progDone = o.optBoolean("progDone");
+                if (progDone) endTimer = 0;   // Programm war fertig: Auslaufen und Anhalten wieder aufnehmen
             }
             tIncl = (float) o.optDouble("tIncl", incline);
             log("laufstand wiederhergestellt", (float) elapsed);

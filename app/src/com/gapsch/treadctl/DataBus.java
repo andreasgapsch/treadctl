@@ -24,8 +24,12 @@ public class DataBus {
     private volatile IBinder mSvc;   // auch aus HTTP- und Tastenthreads (stopNow)
 
     public boolean connect(Context ctx) {
-        Bundle b = ctx.getContentResolver().call(
-                Uri.parse("content://" + AUTH), "method", "args", null);
+        // Instabile Verbindung zum Provider: stirbt der Datendienst des Herstellers, beendet Android sonst jeden Prozess mit
+        // stabiler Verbindung mit (am_kill «depends on provider»), darunter den Steuerdienst. So bekommt er nur einen Fehler.
+        Bundle b;
+        android.content.ContentProviderClient cl = ctx.getContentResolver().acquireUnstableContentProviderClient(Uri.parse("content://" + AUTH));
+        if (cl == null) return false;
+        try { b = cl.call("method", "args", null); } catch (Exception e) { return false; } finally { cl.close(); }
         if (b == null) return false;
         mSvc = b.getBinder("binder");
         return mSvc != null;
