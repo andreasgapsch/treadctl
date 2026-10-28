@@ -21,7 +21,7 @@
 #include <NimBLEDevice.h>
 #include "nimble/nimble/host/services/gap/include/services/gap/ble_svc_gap.h"
 
-static const char *VERSION = "1.2.0";
+static const char *VERSION = "1.2.1";
 static const uint16_t U_FTMS = 0x1826, U_RSC = 0x1814, U_DIS = 0x180A;
 static const uint16_t U_FEAT = 0x2ACC, U_TREAD = 0x2ACD, U_TRAIN = 0x2AD3, U_SPEED = 0x2AD4, U_INCL = 0x2AD5,
                       U_CTRL = 0x2AD9, U_MACH = 0x2ADA, U_RSCM = 0x2A53, U_RSCF = 0x2A54, U_RSCL = 0x2A5D;
@@ -130,9 +130,9 @@ static void handle(String l) {
   if (k == 'D') { String m = l.substring(2); m.trim(); if (m.length() > 0 && m.length() <= 30) cMfr->setValue(m.c_str()); return; }
   if (k == 'H') {
     String n = l.substring(2); n.trim();
-    if (n.length() > 0 && n.length() <= 20) name = n;
-    NimBLEDevice::setDeviceName(name.c_str());
-    advertise();
+    bool changed = n.length() > 0 && n.length() <= 20 && n != name;
+    if (changed) { name = n; NimBLEDevice::setDeviceName(name.c_str()); }
+    if (changed || !started) advertise();   // nur bei neuem Namen, sonst bleibt die Werbung ungestoert
     Serial.printf("R tread-control-esp32 %s\n", VERSION);
     return;
   }

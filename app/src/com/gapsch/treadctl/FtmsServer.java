@@ -160,6 +160,7 @@ public class FtmsServer {
             adv = a.getBluetoothLeAdvertiser();
             if (adv == null) { state = "fehler: keine Werbung moeglich"; return; }
             if (oldName == null) oldName = a.getName();
+            if (oldName != null && !oldName.equals(name) && !prefs.contains("origName")) prefs.edit().putString("origName", oldName).apply();
             if (!name.equals(a.getName())) a.setName(name);   // Name, den Uhren und Apps anzeigen
             AdvertiseSettings st = new AdvertiseSettings.Builder().setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)   // ~100 ms wie die Vorbilder: Apps finden das Band schneller
                 .setConnectable(true).setTimeout(0).setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM).build();
@@ -173,7 +174,7 @@ public class FtmsServer {
     void stopAdv() {
         try { if (adv != null) adv.stopAdvertising(advCb); } catch (Throwable e) {}
         advertising = false;
-        try { BluetoothAdapter a = BluetoothAdapter.getDefaultAdapter(); if (oldName != null && a != null && !on) { a.setName(oldName); oldName = null; } } catch (Throwable e) {}
+        if (!on) restoreName();
     }
     final AdvertiseCallback advCb = new AdvertiseCallback() {
         @Override public void onStartSuccess(AdvertiseSettings s) { advertising = true; state = "bereit"; Log.i(T, "ftms: Werbung aktiv als " + name); }
@@ -258,7 +259,8 @@ public class FtmsServer {
         new Thread(new Runnable() { public void run() { restart(); if (esp) usb.hello(); } }).start();
     }
     void restoreName() {
-        try { BluetoothAdapter a = BluetoothAdapter.getDefaultAdapter(); if (oldName != null && a != null) { a.setName(oldName); oldName = null; } } catch (Throwable e) {}
+        try { BluetoothAdapter a = BluetoothAdapter.getDefaultAdapter(); String o = oldName != null ? oldName : prefs.getString("origName", null);
+            if (o != null && a != null && !o.equals(a.getName())) a.setName(o); oldName = null; } catch (Throwable e) {}
     }
     void emit(UUID u, byte[] v) {
         BluetoothGattCharacteristic c = FtmsData.TREAD.equals(u) ? cTread : FtmsData.STATUS_TRAIN.equals(u) ? cTrain : FtmsData.MACHINE.equals(u) ? cMach : FtmsData.RSC_MEAS.equals(u) ? cRsc : null;
@@ -297,7 +299,7 @@ public class FtmsServer {
         while (core.alive) {
             sleep(1000); n++;
             try {
-                usb.ping(); if (n % 10 == 0 && usb.connected) usb.hello();   // Lebenszeichen und lesbare Werte fuer das Board
+                usb.ping(); if (n % 10 == 0 && usb.connected) usb.values();   // Lebenszeichen und lesbare Werte fuer das Board
                 if (n % 30 == 0) { if (!keepJht) jhtGuard(); if (on && server == null && !usb.connected && !state.startsWith("Bluetooth aus")) restart(); }
                 boolean any; synchronized (subs) { any = server != null && !subs.isEmpty(); }
                 if (!any && !dircon.hasClients() && !usb.hasClients()) continue;
@@ -342,6 +344,7 @@ public class FtmsServer {
         if (j.has("lan")) { lan = j.optBoolean("lan"); dircon.lan = lan; }
         if (j.has("name")) { String n = j.optString("name").replaceAll("[^\\p{L}\\p{N} _.-]", "").trim(); if (n.length() > 0) name = n.length() > 20 ? n.substring(0, 20) : n; }
         if (j.has("mfr")) { String m = j.optString("mfr").replaceAll("[^\\p{L}\\p{N} _.-]", "").trim(); if (m.length() > 0) mfr = m.length() > 30 ? m.substring(0, 30) : m; }
+        if (j.has("origName")) { String o = j.optString("origName").trim(); if (o.length() > 0 && o.length() <= 40) prefs.edit().putString("origName", o).apply(); }   // urspruenglicher Name der Konsole
         if (j.has("maxS")) maxS = (float) Math.max(Core.S_MIN, Math.min(Core.S_MAX, j.optDouble("maxS", maxS)));
         if (j.has("maxI")) maxI = (float) Math.max(0, Math.min(Core.I_MAX, j.optDouble("maxI", maxI)));
         prefs.edit().putBoolean("on", on).putBoolean("ctl", ctl).putBoolean("keepJht", keepJht).putString("name", name)

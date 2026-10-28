@@ -125,8 +125,10 @@ public class UsbBridge {
     }
 
     /** Name und alle lesbaren Werte an das Board (nach dem Verbinden und bei Aenderungen). */
-    void hello() {
-        send("H " + f.name); send("D " + f.mfr);
+    void hello() { send("H " + f.name); values(); }
+    /** Nur Hersteller und lesbare Werte (alle 10 s); den Namen nicht, sonst startet das Board jedes Mal seine Werbung neu. */
+    void values() {
+        send("D " + f.mfr);
         for (UUID u : new UUID[] { FtmsData.FEATURE, FtmsData.SPEED_RANGE, FtmsData.INCL_RANGE, FtmsData.STATUS_TRAIN, FtmsData.RSC_FEAT, FtmsData.RSC_LOC }) {
             byte[] v = f.read(u); if (v != null) send("V " + u16(u) + " " + hex(v));
         }
