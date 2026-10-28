@@ -1,0 +1,19 @@
+# Build
+app/out/
+**/cls/
+app/tools/coretest/lib/
+app/tools/node_modules/
+app/tools/out/
+app/tools/.tiles/
+app/tools/sim/out/
+# Offline-Kacheln werden lokal mit app/tools/kacheln-paket.py erzeugt
+app/assets/tiles/
+# Schluessel und Geraetedaten nie einchecken
+keys/
+*.pk8
+*.x509.pem
+*.keystore
+*.jks
+*.apk
+backup/
+captures/

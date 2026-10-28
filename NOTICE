@@ -1,0 +1,19 @@
+treadctl
+Copyright (c) 2026 Andreas Gapsch
+Lizenz: GNU General Public License v3.0 oder später (GPL-3.0-or-later), siehe LICENSE
+
+Dieses Projekt enthält bzw. nutzt folgende Drittkomponenten:
+
+Leaflet 1.9.4 (app/assets/www/lib/leaflet)
+  Copyright (c) 2010-2023, Volodymyr Agafonkin; Copyright (c) 2010-2011, CloudMade
+  BSD 2-Clause License, siehe app/assets/www/lib/leaflet/LICENSE
+
+org.json (JSON-java) 20240303 (nur Tests, wird von app/tools/coretest/test.sh geladen)
+  Public Domain
+
+Entwicklungswerkzeuge (nicht im Produkt): Playwright (Apache-2.0), Lighthouse (Apache-2.0),
+axe-core (MPL-2.0)
+
+Daten
+  Geodaten: © swisstopo (Open Government Data)
+  Wege der Beispielstrecken: © OpenStreetMap-Mitwirkende, Open Database License 1.0
