@@ -575,6 +575,27 @@
     }
   };
 
+  /* Laufband als Bluetooth-Geraet fuer Apps und Uhren (GET/POST /api/ftms): FTMS und Laufsensor; Demo: aus */
+  var ftd = { ok: true, on: false, ctl: false, name: 'Tread Control', maxS: 14, maxI: 10, state: 'aus', advertising: false, clients: [] };
+  api.ftms = {
+    status: function () {
+      if (demo) return Promise.resolve(JSON.parse(JSON.stringify(ftd)));
+      var ctl = window.AbortController ? new AbortController() : null;
+      return withTimeout(fetch('/api/ftms', { cache: 'no-store', signal: ctl ? ctl.signal : undefined }).then(function (r) { return r.json(); }), 3000, ctl).catch(function () { return null; });
+    },
+    // b: { on, ctl, maxS, maxI, name }
+    set: function (b) {
+      if (demo) {
+        for (var k in b) ftd[k] = b[k];
+        if (!ftd.on) ftd.ctl = false;
+        ftd.state = ftd.on ? 'bereit' : 'aus'; ftd.advertising = ftd.on;
+        window.__txFtmsLog = (window.__txFtmsLog || []).concat([b]);
+        return Promise.resolve(JSON.parse(JSON.stringify(ftd)));
+      }
+      return api.req('POST', '/api/ftms', b);
+    }
+  };
+
   /* Gekoppelte Bluetooth-Audiogeraete mit Verbindungsstatus (GET /api/bt/audio); Demo: ein Sonos Roam «Wohnzimmer» */
   api.btAudio = function () {
     if (demo) return Promise.resolve({ ok: true, audio: [{ name: 'Wohnzimmer (SONOS 0062)', address: 'C4:38:75:62:00:62', connected: true }] });

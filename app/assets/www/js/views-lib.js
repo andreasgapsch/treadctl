@@ -18,9 +18,8 @@
       pts: ['Filme und Serien vom eigenen Server', 'Live-TV mit Programmführer', 'Pille und Live-Verlauf darüber'] },
     { pkg: 'com.kinomap.training', name: 'Kinomap', sub: 'Videostrecken aus aller Welt', bg: '#ff6a00', ic: function () { return mono('K'); }, prev: 'img/apps/kinomap.jpg', pos: 'center',
       pts: ['Videostrecken weltweit', 'Tempo und Steigung über die Pille', 'Pille und Live-Verlauf darüber'] },
-    // DIRCON nur, wenn «Daten an Apps senden» an ist
     { pkg: 'com.zwift.zwiftgame', name: 'Zwift', sub: 'Laufen in virtuellen Welten', bg: '#fc6719', ic: function () { return mono('Z'); }, prev: 'img/apps/zwift.jpg', pos: 'center',
-      pts: function (pf) { return ['Virtuelle Laufwelten'].concat(pf.dircon ? ['Tempo per DIRCON'] : []).concat(['Pille und Live-Verlauf darüber']); } },
+      pts: ['Virtuelle Laufwelten', 'Tempo und Steigung über die Pille', 'Pille und Live-Verlauf darüber'] },
     { pkg: 'com.audiobookshelf.app', name: 'Hörbücher', sub: 'Audiobookshelf vom Heimserver', bg: '#1f6b5a', ic: function () { return I('music'); }, prev: 'img/apps/hoerbuecher.jpg', pos: 'center',
       pts: ['Bibliothek vom eigenen Server', 'läuft im Hintergrund weiter', 'Steuerung bleibt im Vollbild'] }
   ];
@@ -371,13 +370,21 @@
 
   /* ================= Apps ================= */
   var PREFS = [['pill', 'Steuer-Pille anzeigen', 'immer unten in allen Apps; Griff unten mittig: hochwischen zeigt, runterwischen versteckt'], ['pillGraph', 'Live-Verlauf einblenden', 'Tempo, Steigung, Puls über der Pille'],
-    ['autoCollapse', 'Automatisch einklappen', 'nach 6 s ohne Berührung'], ['hideBar', 'Herstellerleiste ausblenden', 'eigene Statuszeile oben, Apps im Vollbild'],
-    ['dircon', 'Daten an Apps senden', 'nur lesen: Tempo, Steigung, Puls (DIRCON)'], ['appIncline', 'Steigung von Apps steuern', 'derzeit keine kompatible App', 'lock']];
+    ['autoCollapse', 'Automatisch einklappen', 'nach 6 s ohne Berührung'], ['hideBar', 'Herstellerleiste ausblenden', 'eigene Statuszeile oben, Apps im Vollbild']];
+  // Laufband als Bluetooth-Geraet (FTMS und Laufsensor): Einstellungen liegen im Dienst, nicht in den Oberflaechen-Einstellungen
+  function ftmsRows(f) {
+    var on = !!(f && f.on), ctl = on && !!f.ctl, n = f && f.clients ? f.clients.length : 0;
+    var sub1 = !f ? 'Dienst nicht erreichbar' : !on ? 'FTMS und Laufsensor für Uhren und Apps auf anderen Geräten' :
+      (n ? 'verbunden: ' + f.clients.map(function (c) { return c.name; }).join(', ') : /^fehler/.test(f.state) ? 'Störung: ' + f.state.replace(/^fehler: /, '') : 'sichtbar als «' + f.name + '»');
+    var sub2 = 'bis ' + (f ? f.maxS : 14) + ' km/h und ' + (f ? f.maxI : 10) + ' %; Start nur an der Konsole, STOP immer';
+    return '<button class="trow" role="switch" data-f="on" aria-checked="' + on + '"' + (f ? '' : ' disabled') + '><div>Daten an Apps und Uhren<small data-k="fsub">' + esc(sub1) + '</small></div><span class="tg' + (on ? '' : ' off') + '"></span></button>' +
+      (on ? '<button class="trow" role="switch" data-f="ctl" aria-checked="' + ctl + '"><div>Apps dürfen Tempo und Steigung steuern<small>' + esc(sub2) + '</small></div><span class="tg' + (ctl ? '' : ' off') + '"></span></button>' :
+        '<button class="trow lk" role="switch" data-f="ctl" aria-checked="false" aria-disabled="true" disabled><div>Apps dürfen Tempo und Steigung steuern<small>zuerst «Daten an Apps und Uhren» einschalten</small></div><span class="tlk">' + I('lock') + '<span class="tg off"></span></span></button>');
+  }
   TX.views.apps = function () {
     var root = document.createElement('div'); root.className = 'screen v-apps';
     var pf = TX.prefs();
     // gesperrte Schalter bleiben aus, auch wenn frueher einmal eingeschaltet
-    PREFS.forEach(function (p) { if (p[3] && pf[p[0]]) { TX.setPref(p[0], false); TX.native.setPref(p[0], false); pf = TX.prefs(); } });
     var ptsOf = function (a, p) { return (typeof a.pts === 'function' ? a.pts(p) : a.pts).map(function (q) { return '<li><span style="color:var(--go);display:flex">' + I('check') + '</span><span>' + esc(q) + '</span></li>'; }).join(''); };
     root.innerHTML = TX.headHtml('Apps') + '<main class="body"><h1 class="sr">Apps</h1><div class="agrid">' + TX.appList().map(function (x) {
       var a = x.a;
@@ -392,16 +399,24 @@
       if (p[3]) return '<button class="trow lk" role="switch" data-p="' + p[0] + '" aria-checked="false" aria-disabled="true" disabled><div>' + p[1] + '<small>' + p[2] + '</small></div>' +
         '<span class="tlk">' + I('lock') + '<span class="tg off"></span></span></button>';
       return '<button class="trow" role="switch" data-p="' + p[0] + '" aria-checked="' + !!pf[p[0]] + '"><div>' + p[1] + '<small>' + p[2] + '</small></div><span class="tg' + (pf[p[0]] ? '' : ' off') + '"></span></button>';
-    }).join('') + '</section></main>';
+    }).join('') + '<div data-k="ftms">' + ftmsRows(null) + '</div></section></main>';
+    var ftmsBox = root.querySelector('[data-k="ftms"]'), ftmsNow = null;
+    var ftmsShow = function (f) { ftmsNow = f; ftmsBox.innerHTML = ftmsRows(f); TX.fixGap(ftmsBox); };
+    TX.api.ftms.status().then(function (f) { ftmsShow(f && f.ok ? f : null); });
     root.addEventListener('click', function (e) {
+      var fb = e.target.closest('[data-f]');
+      if (fb) {
+        if (fb.hasAttribute('disabled') || !ftmsNow) return;
+        var key = fb.getAttribute('data-f'), body = {}; body[key] = !ftmsNow[key];
+        if (key === 'on' && !body.on) body.ctl = false;   // aus: Steuerung ebenfalls aus
+        TX.api.ftms.set(body).then(function (f) { if (f && f.ok) ftmsShow(f); else TX.toast('Nicht gespeichert: ' + (f && f.error || 'Dienst nicht erreichbar')); });
+        return;
+      }
       var b = e.target.closest('[data-p]'); if (!b || b.hasAttribute('disabled') || b.getAttribute('aria-disabled') === 'true') return;
       var k = b.getAttribute('data-p'), v = !TX.prefs()[k];
       TX.setPref(k, v); TX.native.setPref(k, v);
       b.setAttribute('aria-checked', v); b.querySelector('.tg').className = 'tg' + (v ? '' : ' off');
       if (k === 'hideBar' && TX.sbarUpd) TX.sbarUpd();
-      // Punkte, die von Einstellungen abhaengen (Zwift: DIRCON), sofort nachfuehren
-      var np2 = TX.prefs();
-      TX.appList().forEach(function (x) { if (typeof x.a.pts !== 'function') return; var ul = root.querySelector('[data-pts="' + x.a.pkg + '"]'); if (ul) ul.innerHTML = ptsOf(x.a, np2); });
     });
     return { el: root, update: function (st) { TX.updHead(root, st); } };
   };

@@ -34,6 +34,9 @@ Bedienung kann zu Stürzen und schweren Verletzungen führen. Nutzung auf **eige
 - Nach einem Neustart des Dienstes entscheidet er erst nach sicheren Messwerten; ein stehendes Band setzt den Lauf nur mit Gehtempo fort.
 - Hängt die Oberfläche, erscheint die Pille mit STOP.
 - Steuer-API nur auf `127.0.0.1`, mit Token, ohne CORS.
+- Apps über Bluetooth (FTMS) können das Band nie starten oder weiterlaufen lassen; STOP aus einer App wirkt immer.
+  Tempo und Steigung durch Apps sind standardmässig aus und, wenn erlaubt, begrenzt (Standard 14 km/h, 10 %),
+  höchstens alle 2 s und nach jeder Handeingabe 30 s gesperrt.
 
 Diese Massnahmen ersetzen weder den Sicherheitsschlüssel noch die Aufmerksamkeit der laufenden
 Person.

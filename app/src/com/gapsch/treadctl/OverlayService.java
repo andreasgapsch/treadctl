@@ -557,7 +557,12 @@ public class OverlayService extends Service {
                 cTime[3].setTextColor(prog.optBoolean("done") ? GO : paused ? MUT : dl >= 3 ? WARN : dl <= -3 ? GO : MUT);
                 int pace = paused ? (int) Math.round(3600 / Math.max(0.8, sec.optDouble("s") - offS)) : prog.optInt("pace");
                 setTxt(cTime[1], mmss(pace)); setTxt(cTime[2], "/km");
-            } else { setTxt(cTime[1], mmss(s.optInt("elapsed"))); setTxt(cTime[2], ""); setTxt(cTime[3], "ZEIT"); cTime[3].setTextColor(0xFFA4A9BB); }
+            } else {
+                setTxt(cTime[1], mmss(s.optInt("elapsed"))); setTxt(cTime[2], "");
+                String app = s.optString("app", "");   // App steuert Tempo und Steigung (FTMS)
+                if (app.length() > 0) { setTxt(cTime[3], app.toUpperCase(java.util.Locale.ROOT) + " STEUERT"); fitLab(cTime[3]); cTime[3].setTextColor(SPD); }
+                else { setTxt(cTime[3], "ZEIT"); cTime[3].setTextColor(0xFFA4A9BB); }
+            }
             if ("pause".equals(mode)) { setTxt(cTime[3], "PAUSE · GESAMT"); setTxt(cTime[2], ""); double ti = s.optDouble("tIncl");
                 boolean after = s.optString("note").startsWith("Nach Unterbrechung");
                 if (pauseInfo != null) setTxt(pauseInfo, ti > 0.05 ? "Steigung bleibt " + f1(ti) + " %" : "Steigung 0.0 %");

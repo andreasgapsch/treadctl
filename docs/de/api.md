@@ -131,6 +131,28 @@ Laufzeit: Tempo-Eingaben ändern `offS` (bis «Zurück zum Plan»), Steigungs-Ei
 - **Ventilatorprotokoll** (Nordic UART 6e400001): App an Ventilator `55 A5 len id seq daten chkH chkL`, chk = ~Summe ab len; jede Meldung `AA 5A …` wird mit id 255 und ihrer seq quittiert. id 1 Stufe (0 = kleinste Drehzahl), id 5 Modus (0 manuell), id 19 `[wach 1 | schlafen 0, SmartStart]`. Den DFU-Dienst FE59 nie anfassen; die Hersteller-App darf nicht gleichzeitig verbunden sein.
 - **BLE-Werkzeug** (nur zum Einbinden neuer Geräte): `GET /api/probe` und `POST /api/probe/cmd` (Token) für Suche, Verbinden, Lesen, Melden, Schreiben.
 
+## Apps und Uhren (FTMS, Laufsensor)
+
+Die Konsole erscheint über ihr eigenes Bluetooth als Laufband (FTMS 0x1826) und als Laufsensor (RSC 0x1814), Name
+standardmässig «Tread Control». Uhren koppeln den Laufsensor (Tempo und Distanz vom Band), Apps auf anderen Geräten
+das Laufband. Apps auf der Konsole selbst brauchen DIRCON (folgt), weil Bluetooth nicht mit sich selbst verbindet.
+
+- `GET /api/ftms` → `{on, ctl, keepJht, name, maxS, maxI, state, advertising, clients:[{addr, name}]}`.
+- `POST /api/ftms` (Token) mit beliebigen Feldern `{on, ctl, name, maxS, maxI, keepJht}`; gespeichert im Dienst.
+  `name` bis 20 Zeichen (Buchstaben, Ziffern, Leerzeichen, `_.-`), wird zum Bluetooth-Namen der Konsole.
+- Steuerpunkt der Apps → `Core.appCmd` mit eigenen Regeln: **nie Start oder Weiter**, STOP und Pause immer;
+  Tempo und Steigung nur mit `ctl`, nur im Lauf ohne Programm, nicht im Einlaufen, Grenzen `maxS` (Standard 14 km/h)
+  und `maxI` (10 %), Werte ausserhalb des gemeldeten Bereichs sind ungültig, höchstens ein Befehl je 2 s (spätere
+  Werte gelten im nächsten Takt), Tempo in Stufen von 3 km/h, nach einer Handeingabe 30 s Vorrang der Konsole
+  (Meldung «Steuerung verloren» an die App), ohne Lebenszeichen der Oberfläche nicht hochregeln.
+- Zustand: `appCtl` (Steuerung erlaubt), `app` (Name der App, die in den letzten 15 s gesteuert hat), Quelle `src: "app"`.
+- Befehl `appRelease`: «Zurück an Konsole», sperrt Apps bis zum nächsten Start.
+- Der FTMS-Dienst des Herstellers (`GATTServerService`, Prozess `com.jhtp.atsoul.gattserverservice`) wird angehalten
+  und alle 30 s geprüft, weil sein Steuerpunkt direkt auf den Bus schreibt und einen Start über die GO-Taste auslöst.
+  `keepJht: true` lässt ihn laufen (startet ihn wieder).
+- Werbung: ein einziger Werbesatz (das Funkmodul MT7663 meldet keine Mehrfachwerbung), nach jeder Verbindung neu
+  gestartet, damit Uhr und App gleichzeitig verbinden können.
+
 ## Medien (Mini-Player)
 
 Konzept: `player.md`.

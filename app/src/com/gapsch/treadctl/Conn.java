@@ -111,6 +111,12 @@ public class Conn implements Runnable {
             if (("scan".equals(j.optString("a")) || "connect".equals(j.optString("a"))) && d.probe != null) d.probe.close();   // nur eine Verbindung zum Ventilator
             json(200, d.fan.cmd(j)); return;
         }
+        if (path.equals("/api/ftms") && method.equals("GET")) { json(200, d.ftms == null ? Core.err("kein FTMS") : d.ftms.status()); return; }
+        if (path.equals("/api/ftms") && method.equals("POST")) {
+            if (!postAllowed()) return;
+            JSONObject j = body(in, 1024); if (j == null) return;
+            json(200, d.ftms == null ? Core.err("kein FTMS") : d.ftms.cmd(j)); return;
+        }
         if (path.equals("/api/bt/audio") && method.equals("GET")) { json(200, d.hrBle == null ? Core.err("kein Bluetooth") : d.hrBle.audio()); return; }
         if (path.equals("/api/hr") && method.equals("GET")) { json(200, d.hrBle == null ? Core.err("kein Bluetooth") : d.hrBle.status()); return; }
         if (path.startsWith("/api/hr/") && method.equals("POST")) {

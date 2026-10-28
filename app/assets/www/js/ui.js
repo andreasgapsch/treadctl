@@ -93,6 +93,12 @@
     if (!el) return;
     var s = TX.stOf(st), t = '● ' + TX.stName[s];
     if (el.textContent !== t) { el.textContent = t; el.className = 'chip stchip st-' + s; }
+    // Eine App (FTMS) steuert Tempo und Steigung: Hinweis mit Rueckgabe an die Konsole fuer den Rest des Laufs
+    var ab = el.nextElementSibling && el.nextElementSibling.classList.contains('appchip') ? el.nextElementSibling : null, app = st && st.app;
+    if (app) {
+      if (!ab) { ab = document.createElement('button'); ab.className = 'chip appchip'; ab.setAttribute('data-g', 'apprelease'); el.parentNode.insertBefore(ab, el.nextSibling); el.parentNode.classList.add('withapp'); }
+      if (ab.getAttribute('data-app') !== app) { ab.setAttribute('data-app', app); ab.setAttribute('aria-label', 'Steuerung durch ' + app + ' beenden'); ab.innerHTML = esc(app) + ' steuert ' + I('x'); }
+    } else if (ab) { ab.parentNode.classList.remove('withapp'); ab.parentNode.removeChild(ab); }
   };
   // prog: {total, left} oder null (freier Lauf: kein Balken)
   TX.progHead = function (root, st, prog) {

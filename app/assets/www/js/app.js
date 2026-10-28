@@ -44,6 +44,7 @@
     var g = b.getAttribute('data-g');
     if (g === 'home') TX.go('#/');
     else if (g === 'totrain') TX.go(TX.trainHash(api.state));
+    else if (g === 'apprelease') TX.cmd('appRelease').then(function (r) { if (r && r.ok) TX.toast('Steuerung zurück an der Konsole'); });
     else if (g === 'stop') TX.cmd('stop');
     else if (g === 'launch') TX.launch(b.getAttribute('data-pkg'));
     else if (g === 'profile') profileDlg();

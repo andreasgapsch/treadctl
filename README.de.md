@@ -51,7 +51,8 @@ jeder App im Griff.
 |---|---|
 | **Serien oder Filme schauen** in Jellyfin, YouTube oder SmartTube, während ein Intervallplan läuft | Die Steuerpille schwebt unten über jeder App: Steigung, STOP, Tempo, Live-Verlauf. 10 s vor jedem Wechsel kündigt ein Banner das neue Tempo und die neue Steigung an, mit Tönen bei 3, 2, 1. Runterwischen versteckt sie, hochwischen holt sie zurück. |
 | **Mit Musik oder Hörbuch laufen** (YouTube Music, Audiobookshelf) | Der Mini-Player im Kopf zeigt Titel und Cover, bedient Wiedergabe und Lautstärke, wechselt zwischen Musik und Hörbuch und schaltet den Ton auf die Konsole oder einen Bluetooth-Lautsprecher. |
-| **Videostrecken folgen** in Kinomap oder Zwift | Tempo und Steigung bleiben auf der Pille und den Drehreglern der Konsole. Die automatische Steuerung durch die App braucht FTMS, siehe Ausblick. |
+| **Videostrecken folgen** in Kinomap oder Zwift | Auf Tablet, Handy oder PC sehen die Apps die Konsole als Bluetooth-Laufband (FTMS) und lesen Tempo, Steigung und Distanz. Wenn du es erlaubst, dürfen Apps Tempo und Steigung innerhalb deiner Grenzen setzen; der Start bleibt an der Konsole, STOP wirkt immer. Apps auf der Konsole selbst brauchen DIRCON, siehe Ausblick. |
+| **Mit Garmin-Uhr laufen** | Die Konsole erscheint auch als Laufsensor: Pace und Distanz auf der Uhr kommen vom Band statt aus der Schätzung am Handgelenk. |
 | **Nach Puls trainieren** mit Brustgurt oder Uhr | Bluetooth-Pulsgurte (z. B. Garmin HRM 600) und Uhren mit HF-Übertragung speisen Zonentraining, Stufentest und Ventilator. |
 | **Automatisch kühlen** | Ein smarter Ventilator CYCPLUS F1 folgt Tempo, Steigung und Puls; von Hand über die Pille. |
 | **Eigene Integration bauen** | Eine lokale HTTP-Schnittstelle auf der Konsole (mit Token) liefert den Zustand und nimmt Befehle an, siehe Beispiele unten und [docs/de/api.md](docs/de/api.md). |
@@ -156,9 +157,9 @@ geprüften Produkt:
    nachgeprüft. Die Noten sind ehrlich: Eine Runde fiel auf 6.5, weil sie einen kritischen Fehler bei
    Busausfällen fand. Dazu ein eigener Stabilitätsreview (Neustarts, Bluetooth, Uhrensprünge,
    hängende Oberfläche) und Leistungsmessungen am Gerät (Ruhelast der Oberfläche von 14 auf 3 %).
-5. **Automatisierte Nachweise:** 65 Szenariotests der Steuerlogik gegen ein simuliertes Band
-   (inklusive echter Hauptschleife bei Busausfall, Neustart und hängendem Bus), 117 Prüfpunkte für
-   die Oberfläche (Darstellung, Barrierefreiheit, Lighthouse), 30 Sicherheitstests am Gerät, ein
+5. **Automatisierte Nachweise:** 86 Szenariotests der Steuerlogik gegen ein simuliertes Band
+   (inklusive echter Hauptschleife bei Busausfall, Neustart und hängendem Bus), 118 Prüfpunkte für
+   die Oberfläche (Darstellung, Barrierefreiheit, Lighthouse), 32 Sicherheitstests am Gerät, ein
    Zeitraffer-Simulator für Streckenpläne und Fehlertests am echten Band mit Person.
 
 Menschen entscheiden, KI beschleunigt: Jeder Bandtest brauchte eine Person am Gerät, und jeder
@@ -168,8 +169,8 @@ Gestaltungsentscheid lief über den Besitzer.
 
 | Thema | Stand |
 |---|---|
-| **FTMS (Bluetooth Fitness Machine Service)** | Offen. Ziel: Apps und Uhren wie Zwift, Kinomap oder Garmin lesen Tempo und Steigung und können das Band steuern. |
-| **ESP32-Lösung** | In Arbeit, in zwei Schritten: zuerst ein ESP32 als FTMS-Brücke für Apps und Uhren; langfristig die direkte Steuerung über die serielle Leitung zum Motorboard (Weg 2 in [control-paths.md](docs/de/control-paths.md)), unabhängig von der Herstellersoftware. Die eigene Schutzlogik des Motorboards und der Sicherheitsschlüssel bleiben erhalten. |
+| **FTMS (Bluetooth Fitness Machine Service)** | Gebaut, im Test: FTMS und Laufsensor über das eigene Funkmodul der Konsole, Steuerung durch Apps nur auf Wunsch und mit Grenzen (siehe [api.md](docs/de/api.md)). Der FTMS-Dienst des Herstellers wird angehalten, weil er an den Sicherheitsregeln vorbeigeht. Als Nächstes: DIRCON (FTMS über WLAN) für Zwift und Kinomap auf der Konsole selbst. |
+| **ESP32-Lösung** | Nur bei Bedarf, in zwei Schritten: ein ESP32-S3 am USB als eigenes Bluetooth-Funkmodul (falls das Funkmodul der Konsole nicht zuverlässig genug ist oder für Apps auf der Konsole ohne DIRCON); langfristig die direkte Steuerung über die serielle Leitung zum Motorboard (Weg 2 in [control-paths.md](docs/de/control-paths.md)), unabhängig von der Herstellersoftware. Die eigene Schutzlogik des Motorboards und der Sicherheitsschlüssel bleiben erhalten. |
 | **Bandtests der neuesten Funktionen** | Gerätetasten nach der Umstellung auf alle Eingabegeräte, Tasten am Ventilator. |
 
 ## Voraussetzungen

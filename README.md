@@ -50,7 +50,8 @@ under control on top of every app.
 |---|---|
 | **Watch series or films** in Jellyfin, YouTube or SmartTube while running an interval plan | The control pill floats at the bottom of every app: incline, STOP, speed, live chart. 10 s before every change a banner announces the new speed and incline, with tones at 3, 2, 1. Swipe down to hide it, swipe up to bring it back. |
 | **Run to music or an audiobook** (YouTube Music, Audiobookshelf) | The mini player in the header shows title and cover, controls play/pause and volume, switches between music and audiobook, and routes the sound to the console or a Bluetooth speaker. |
-| **Follow video routes** in Kinomap or Zwift | Speed and incline stay on the pill and the console knobs. Automatic control by the app needs FTMS, see the roadmap. |
+| **Follow video routes** in Kinomap or Zwift | On a tablet, phone or PC the apps see the console as a Bluetooth treadmill (FTMS) and read speed, incline and distance. If you allow it, apps may set speed and incline within your limits; start stays on the console, STOP always works. Apps on the console itself need DIRCON, see the roadmap. |
+| **Run with a Garmin watch** | The console also appears as a footpod: pace and distance on the watch come from the belt instead of the wrist estimate. |
 | **Train by heart rate** with a chest strap or watch | Bluetooth heart-rate straps (e.g. Garmin HRM 600) and watches that broadcast heart rate feed the zone training, the step test and the fan. |
 | **Keep cool automatically** | A CYCPLUS F1 smart fan follows speed, incline and heart rate; manual override from the pill. |
 | **Build your own integration** | A local HTTP API on the console (token-protected) exposes the state and the commands, see the examples below and [docs/en/api.md](docs/en/api.md). |
@@ -154,9 +155,9 @@ agent (Claude Code) built it within a few days, from reverse engineering to a te
    scores are honest: one round dropped to 6.5 because it found a critical bus-failure bug. On top
    of that a dedicated stability review (restarts, Bluetooth, clock jumps, hanging UI) and
    performance measurements on the device (UI idle load down from 14 % to 3 %).
-5. **Automated evidence:** 65 scenario tests of the control logic against a simulated treadmill
-   (including the real main loop through bus failures, restarts and a hanging bus), 117 UI audit
-   checks (rendering, accessibility, Lighthouse), 30 security tests on the device, a time-lapse
+5. **Automated evidence:** 86 scenario tests of the control logic against a simulated treadmill
+   (including the real main loop through bus failures, restarts and a hanging bus), 118 UI audit
+   checks (rendering, accessibility, Lighthouse), 32 security tests on the device, a time-lapse
    simulator for route plans, and fault tests on the real belt with a person present.
 
 Humans decide, AI accelerates: every belt test needed a person at the treadmill, and every design
@@ -166,8 +167,8 @@ decision went through the owner.
 
 | Topic | Status |
 |---|---|
-| **FTMS (Bluetooth Fitness Machine Service)** | Open. Goal: apps and watches such as Zwift, Kinomap or Garmin read speed and incline and can control the belt. |
-| **ESP32 solution** | In progress, two steps: first an ESP32 as FTMS bridge for apps and watches; in the long run direct control over the serial line to the motor board (path 2 in [control-paths.md](docs/en/control-paths.md)), independent of the manufacturer software. The motor board's own safety logic and the safety key stay in place. |
+| **FTMS (Bluetooth Fitness Machine Service)** | Built, in testing: FTMS and footpod from the console's own radio, app control opt-in with limits (see [api.md](docs/en/api.md)). The manufacturer's own FTMS server is stopped because it bypasses the safety rules. Next: DIRCON (FTMS over Wi-Fi) for Zwift and Kinomap on the console itself. |
+| **ESP32 solution** | Only if needed, two steps: an ESP32-S3 on USB as a separate Bluetooth radio (if the console radio proves unreliable or for apps on the console without DIRCON); in the long run direct control over the serial line to the motor board (path 2 in [control-paths.md](docs/en/control-paths.md)), independent of the manufacturer software. The motor board's own safety logic and the safety key stay in place. |
 | **Belt tests of the newest features** | Hardware keys after the switch to reading all input devices, fan buttons. |
 
 ## Requirements

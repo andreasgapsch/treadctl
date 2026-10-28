@@ -131,6 +131,28 @@ At run time speed inputs change `offS` (until back to plan), incline inputs `off
 - **Fan protocol** (Nordic UART 6e400001): app to fan `55 A5 len id seq data chkH chkL`, chk = ~sum from len; every fan message `AA 5A …` is acknowledged with id 255 and its seq. id 1 level (0 = lowest speed, not off), id 5 mode (0 manual), id 19 `[awake 1 | sleep 0, smart start]`. Never touch the DFU service FE59; the manufacturer app must not be connected at the same time.
 - **BLE tool** (only for integrating new devices): `GET /api/probe` and `POST /api/probe/cmd` (token) for scan, connect, read, notify, write.
 
+## Apps and watches (FTMS, footpod)
+
+The console appears over its own Bluetooth as a treadmill (FTMS 0x1826) and as a footpod (RSC 0x1814), named
+"Tread Control" by default. Watches pair the footpod (speed and distance from the belt), apps on other devices the
+treadmill. Apps on the console itself need DIRCON (planned), because Bluetooth cannot connect to itself.
+
+- `GET /api/ftms` → `{on, ctl, keepJht, name, maxS, maxI, state, advertising, clients:[{addr, name}]}`.
+- `POST /api/ftms` (token) with any of `{on, ctl, name, maxS, maxI, keepJht}`; stored by the service. `name` up to 20
+  characters (letters, digits, space, `_.-`), becomes the console's Bluetooth name.
+- Control point of the apps → `Core.appCmd` with its own rules: **never start or resume**, stop and pause always;
+  speed and incline only with `ctl`, only while running without a program, not during the slow start, limits `maxS`
+  (default 14 km/h) and `maxI` (10 %), values outside the advertised range are invalid, at most one command per 2 s
+  (later values apply on the next tick), speed in steps of 3 km/h, after a manual input the console has priority for
+  30 s ("control lost" is sent to the app), no increases without a sign of life from the UI.
+- State: `appCtl` (control allowed), `app` (name of the app that controlled within the last 15 s), source `src: "app"`.
+- Command `appRelease`: "back to the console", blocks apps until the next start.
+- The manufacturer's FTMS service (`GATTServerService`, process `com.jhtp.atsoul.gattserverservice`) is stopped and
+  checked every 30 s, because its control point writes straight to the bus and starts via the GO key.
+  `keepJht: true` keeps it running (starts it again).
+- Advertising: a single advertising set (the MT7663 radio reports no multi-advertising), restarted after every
+  connection so that a watch and an app can connect at the same time.
+
 ## Media (mini player)
 
 - `GET /api/media` → `{ok, active, pkg, app, playing, title, artist, album, dur, pos, art, canNext, canPrev, vol, volMax, out, outs, sources}`. `art` is a version number that only changes with a new image (0 = none). `outs`: `[{address, name, connected, active, busy}]`, the first entry is the console (`address: ""`). `sources`: YouTube Music and audiobooks with `installed, session, playing, title`.

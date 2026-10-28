@@ -324,6 +324,57 @@ public class CoreSzenarien {
             t("Wache: Haenger erkannt, Blackbox, Prozess neu gestartet", stale && android.os.Process.kills > k0 && box.contains("wache: hauptschleife steht") && box.contains("wache: prozess wird neu gestartet"), "kills " + (android.os.Process.kills - k0));
             s.b.hang = false; s.c.alive = false; core.join(3000);
         }
+        { // 25 Apps (FTMS): ohne Erlaubnis keine Steuerung, nie Start, STOP immer
+            CoreSzenarien s = new CoreSzenarien();
+            t("App-Start im Zustand BEREIT abgewiesen", s.c.appCmd(FtmsData.OP_START, Double.NaN, "App") == FtmsData.RES_NOT_PERMITTED && "BEREIT".equals(s.c.st) && s.b.stops == 0, s.c.st);
+            s.cmd("{\"c\":\"speed\",\"v\":8}"); s.startRun(); s.run(30); s.c.manualAt = 0; float v0 = s.c.tSpeed;
+            t("App-Tempo ohne Erlaubnis abgewiesen", s.c.appCmd(FtmsData.OP_SPEED, 12, "App") == FtmsData.RES_NOT_PERMITTED && s.c.tSpeed == v0, "Soll " + s.c.tSpeed);
+            int r = s.c.appCmd(FtmsData.OP_STOP, 1, "App"); s.run(0.4);
+            t("STOP aus der App wirkt immer", r == FtmsData.RES_OK && "PAUSE".equals(s.c.st), s.c.st);
+            t("Weiter aus der App abgewiesen", s.c.appCmd(FtmsData.OP_START, Double.NaN, "App") == FtmsData.RES_NOT_PERMITTED && "PAUSE".equals(s.c.st), s.c.st);
+        }
+        { // 26 Apps mit Erlaubnis: nicht im Einlaufen, Grenzen, Rampe, 2-s-Takt, Handeingabe hat Vorrang, «Zurück an Konsole»
+            CoreSzenarien s = new CoreSzenarien(); s.c.appCtl = true; s.c.appMaxS = 14f; s.c.appMaxI = 10f;
+            s.cmd("{\"c\":\"speed\",\"v\":6}"); s.startRun(); s.run(2);
+            t("App-Tempo im Einlaufen abgewiesen", s.c.appCmd(FtmsData.OP_SPEED, 10, "Kinomap") == FtmsData.RES_FAILED && s.c.holdLeft > 0, "hold " + s.c.holdLeft);
+            s.run(20); s.c.manualAt = 0; float start = s.c.tSpeed;
+            int r1 = s.c.appCmd(FtmsData.OP_SPEED, 10, "Kinomap"); float first = s.c.tSpeed; s.run(12);
+            t("App-Tempo 10 in Stufen von 3 km/h", r1 == FtmsData.RES_OK && start < 7f && first <= start + 3.05f && Math.abs(s.c.tSpeed - 10) < 0.05 && "app".equals(s.c.src), "erste Stufe " + first + ", dann " + s.c.tSpeed);
+            int r2 = s.c.appCmd(FtmsData.OP_SPEED, 18, "Kinomap"); s.run(2.4);
+            t("Tempo auf Grenze 14 km/h begrenzt", r2 == FtmsData.RES_OK && Math.abs(s.c.tSpeed - 13) < 0.05 || Math.abs(s.c.tSpeed - 14) < 0.05, "Soll " + s.c.tSpeed);
+            s.run(6);
+            t("Tempo erreicht 14 km/h", Math.abs(s.c.tSpeed - 14) < 0.05, "Soll " + s.c.tSpeed);
+            s.run(2.2); s.c.appCmd(FtmsData.OP_INCL, 4, "Kinomap"); int r3 = s.c.appCmd(FtmsData.OP_INCL, 12, "Kinomap"); int r4 = s.c.appCmd(FtmsData.OP_INCL, 20, "Kinomap");
+            t("Zweiter Befehl innerhalb 2 s wartet, 20 % ausserhalb des Bereichs ungueltig", s.c.tIncl < 0.05 && r3 == FtmsData.RES_OK && r4 == FtmsData.RES_INVALID, "Steigung " + s.c.tIncl);
+            s.run(2.2);
+            t("Steigung auf Grenze 10 % begrenzt", Math.abs(s.c.tIncl - 10) < 0.05, "Steigung " + s.c.tIncl);
+            t("Zustand meldet steuernde App", new JSONObject(s.c.stateJson(false)).optString("app").equals("Kinomap"), "");
+            s.cmd("{\"c\":\"incline\",\"v\":2}"); s.run(2.2);
+            t("Nach Handeingabe hat die Konsole 30 s Vorrang", s.c.appCmd(FtmsData.OP_INCL, 6, "Kinomap") == FtmsData.RES_NOT_PERMITTED && Math.abs(s.c.tIncl - 2) < 0.05, "Steigung " + s.c.tIncl);
+            s.c.manualAt = Core.clock() - 31000;
+            t("Nach 30 s darf die App wieder", s.c.appCmd(FtmsData.OP_INCL, 6, "Kinomap") == FtmsData.RES_OK, "");
+            s.cmd("{\"c\":\"appRelease\"}"); s.run(2.2);
+            t("Zurück an Konsole sperrt die App bis zum nächsten Start", s.c.appCmd(FtmsData.OP_INCL, 3, "Kinomap") == FtmsData.RES_NOT_PERMITTED && !new JSONObject(s.c.stateJson(false)).has("app"), "Steigung " + s.c.tIncl);
+            s.c.appBlocked = false; s.lease = false; s.run(62); s.c.manualAt = 0; s.run(2.2);
+            t("Ohne Oberfläche nicht hochregeln", s.c.appCmd(FtmsData.OP_SPEED, s.c.tSpeed + 1, "Kinomap") == FtmsData.RES_NOT_PERMITTED, "Soll " + s.c.tSpeed);
+        }
+        { // 27 Programme fuehren das Band: App gesperrt
+            CoreSzenarien s = new CoreSzenarien(); s.c.appCtl = true;
+            s.cmd("{\"c\":\"program\",\"p\":{\"type\":\"interval\",\"segs\":[{\"d\":600,\"s\":8,\"i\":1}]}}");
+            s.startRun(); s.run(20); s.c.manualAt = 0;
+            t("App im Intervallprogramm gesperrt", s.c.appCmd(FtmsData.OP_SPEED, 12, "Zwift") == FtmsData.RES_NOT_PERMITTED, "Soll " + s.c.tSpeed);
+        }
+        { // 28 FTMS-Kodierung nach Spezifikation
+            byte[] d = FtmsData.treadmill(10.0, 1.234, 2.5, 120, 150, true, 600);
+            StringBuilder h = new StringBuilder(); for (byte x : d) h.append(String.format("%02x", x));
+            t("Treadmill Data 19 Byte, Felder kleiner Endian", h.toString().equals("8c05e803d2040019000e007800ffffff965802"), h.toString());
+            t("Ohne Puls 18 Byte, Pulsbit aus", FtmsData.treadmill(10, 1, 0, 0, 0, false, 0).length == 18 && (FtmsData.treadmill(10, 1, 0, 0, 0, false, 0)[1] & 1) == 0, "");
+            FtmsData.Cp a1 = FtmsData.parse(new byte[] { 0x02, (byte) 0xe8, 0x03 }), a2 = FtmsData.parse(new byte[] { 0x03, (byte) 0x9c, (byte) 0xff }), a3 = FtmsData.parse(new byte[] { 0x02, 0x01 });
+            t("Steuerpunkt: Tempo 10.0, Steigung -10.0, zu kurz ungueltig", Math.abs(a1.v - 10) < 1e-9 && Math.abs(a2.v + 10) < 1e-9 && a3.bad, a1.v + " " + a2.v);
+            byte[] r = FtmsData.rsc(10, 1.234);
+            t("Laufsensor: 711/256 m/s, Schrittfrequenz 159, Distanz 12340 dm, Laufen", (r[1] & 0xff | (r[2] & 0xff) << 8) == 711 && (r[3] & 0xff) == 159 && (r[4] & 0xff | (r[5] & 0xff) << 8) == 12340 && (r[0] & 4) != 0, "");
+            t("Feature mit Steuerung: Tempo- und Steigungssoll", FtmsData.feature(true)[4] == 3 && FtmsData.feature(false)[4] == 0, "");
+        }
         System.out.println();
         System.out.println("Ergebnis: " + ok + " bestanden, " + fail + " fehlgeschlagen");
         System.exit(fail == 0 ? 0 : 1);

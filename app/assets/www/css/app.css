@@ -77,6 +77,7 @@ svg.i.f{fill:currentColor;stroke:none}
   display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--text)}
 .chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 12px;
   font-size:12px;font-weight:700;background:rgba(255,255,255,.08);border:1px solid var(--line);white-space:nowrap}
+.appchip{border:0;background:rgba(61,139,255,.18);color:#a9c8ff;font-weight:700;height:48px;padding:0 16px;cursor:pointer}.thead .ctr.withapp{flex-direction:row;top:6px;gap:8px}.appchip svg{width:16px;height:16px}
 .hrchip{color:var(--hr);font-size:14px;padding:0 16px;height:48px;font-weight:700;border:1px solid var(--line2)}
 .hrchip:active{filter:brightness(1.35)}
 .hrchip.off{color:var(--mut)}

@@ -53,3 +53,16 @@ bus (DataMatrix binder): full control and telemetry, while the motor board's saf
 stay in place. Path 2 (serial line directly) is documented and validated on the device
 ([serial-protocol.md](serial-protocol.md), `tools/lcb.py`) but not used: it would require replacing the
 manufacturer software entirely. Interface, commands and safety rules: [api.md](api.md).
+
+## Manufacturer FTMS (finding 28.10.2026)
+
+- The manufacturer software has its own FTMS server (`GATTServerService` in process
+  `com.jhtp.atsoul.gattserverservice`, uid 1000, not exported, START_STICKY). It advertises as "TM XP_..." as soon as
+  it starts and only sends data while its own workout engine runs (`DATA_RUN_STATE_INT == 1`).
+- Its control point writes speed and incline straight to the bus (`ACTION_SET_SPEED_KPH_FLOAT`) and starts by
+  injecting the GO key: bypassing the countdown, slow start and ramps of Tread Control.
+- `FtmsServer` therefore stops it (`ACTION_FTMS_STOP_ADVERTISE` and `stopService`, checked every 30 s) and provides
+  its own FTMS with the rules of `Core.appCmd`. `keepJht` starts it again.
+- Radio: MediaTek MT7663 (USB, Bluetooth 5.0). Android reports neither multi nor extended advertising; one
+  advertising set is enough (restarted after every connection).
+

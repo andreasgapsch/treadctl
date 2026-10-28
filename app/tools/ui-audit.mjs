@@ -57,6 +57,7 @@ const server = http.createServer((req, res) => {
   if (u === '/api/media') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"ok":true,"active":false,"pkg":"","app":"","playing":false,"title":"","artist":"","album":"","dur":0,"pos":0,"art":0,"canNext":false,"canPrev":false}'); return; }
   if (u === '/api/hr' && req.method === 'GET') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"ok":true,"state":"aus","name":"","address":"","hr":0,"scanning":false,"bt":true,"found":[]}'); return; }
   if (u === '/api/summary') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{}'); return; }
+  if (u === '/api/ftms') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"ok":true,"on":false,"ctl":false,"name":"Tread Control","maxS":14,"maxI":10,"state":"aus","clients":[]}'); return; }   // wie der Dienst ohne FTMS
   if (u === '/api/bt/audio') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"ok":true,"audio":[]}'); return; }
   if (u === '/api/fan' && req.method === 'GET') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"ok":true,"state":"kein Ventilator","name":"","address":"","auto":false,"level":0,"target":0,"manual":false,"connected":false,"awake":false}'); return; }
   if (u === '/api/media/cmd' && req.method === 'POST') { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"ok":false,"error":"keine Wiedergabe"}'); return; }
@@ -691,7 +692,7 @@ if (!ONLY.length) {
     const ok = r.lines.length === 5 && r.lines.every(l => l.length === 2) && r.lines[2][0] === '143' && r.lines[2][1] === 'bis 156' && r.minGap >= 6;
     return { ok, d: `${r.lines.map(l => l.join('/')).join('  ')}; kleinster Abstand ${r.minGap.toFixed(1)} px` };
   });
-  await flow('App-Hub: Untertitel sagen, was dahinter steckt (nie «statt»), keine Abzeichen, nur Fähigkeiten als Punkte, DIRCON nur mit Datenfreigabe, YouTube überall gleich', async p => {
+  await flow('App-Hub: Untertitel sagen, was dahinter steckt (nie «statt»), keine Abzeichen, nur Fähigkeiten als Punkte, Steuerung durch Apps erst nach «Daten an Apps», YouTube überall gleich', async p => {
     await p.goto(BASE + '?demo=1#/'); await p.waitForTimeout(800);
     const yh = await p.$eval('.app[data-pkg="org.smarttube.stable"], .app[data-pkg="app.revanced.android.youtube"]', e => e.textContent.trim());
     await go(p, '#/apps'); await p.waitForTimeout(300);
@@ -699,14 +700,19 @@ if (!ONLY.length) {
       pts: Array.from(e.querySelectorAll('li')).map(l => (l.className || 'y') + ':' + l.textContent.trim()) }));
     const all = await p.evaluate(() => ({ st: document.querySelectorAll('.ap .st').length, txt: document.querySelector('.agrid').textContent, bad: document.querySelectorAll('.ap li.n, .ap li.h').length, subs: Array.from(document.querySelectorAll('.ap .pk')).map(e => e.textContent) }));
     const km = await card('com.kinomap.training'), zw1 = await card('com.zwift.zwiftgame');
-    const inc = await p.$eval('[data-p="appIncline"] small', e => e.textContent);
-    await p.click('[data-p="dircon"]'); await p.waitForTimeout(200);
-    const zw2 = await card('com.zwift.zwiftgame');
+    const ctlRow = () => p.$eval('[data-f="ctl"]', e => ({ dis: e.disabled, sm: e.querySelector('small').textContent }));
+    const inc = await ctlRow();
+    await p.click('[data-f="on"]'); await p.waitForTimeout(300);
+    const inc2 = await ctlRow(), on = await p.$eval('[data-f="on"]', e => e.getAttribute('aria-checked') + ' ' + e.querySelector('small').textContent);
+    await p.click('[data-f="ctl"]'); await p.waitForTimeout(300);
+    const flog = await p.evaluate(() => JSON.stringify(window.__txFtmsLog || []));
     const ok = yh === 'YouTubeVideos mit deinem Google-Konto' && all.subs[0] === 'Videos mit deinem Google-Konto' && all.st === 0 && !/statt|ERSATZ|BEGLEITER|BEREIT/.test(all.txt) && all.bad === 0 &&
       all.subs.join('|') === 'Videos mit deinem Google-Konto|Musik und Playlists mit deinem Google-Konto|Filme, Serien und Live-TV vom Heimserver|Videostrecken aus aller Welt|Laufen in virtuellen Welten|Audiobookshelf vom Heimserver' &&
       km.pts.join('|') === 'y:Videostrecken weltweit|y:Tempo und Steigung über die Pille|y:Pille und Live-Verlauf darüber' &&
-      zw1.pts.join('|') === 'y:Virtuelle Laufwelten|y:Pille und Live-Verlauf darüber' && zw2.pts[1] === 'y:Tempo per DIRCON' && inc === 'derzeit keine kompatible App';
-    return { ok, d: `Start «${yh}»; Untertitel [${all.subs.join(' | ')}]; Abzeichen ${all.st}, Warnpunkte ${all.bad}; Kinomap [${km.pts.join('; ')}]; Zwift aus [${zw1.pts}], an «${zw2.pts[1]}»; Steigung «${inc}»` };
+      zw1.pts.join('|') === 'y:Virtuelle Laufwelten|y:Tempo und Steigung über die Pille|y:Pille und Live-Verlauf darüber' &&
+      inc.dis && inc.sm === 'zuerst «Daten an Apps und Uhren» einschalten' && !inc2.dis && inc2.sm === 'bis 14 km/h und 10 %; Start nur an der Konsole, STOP immer' &&
+      on === 'true sichtbar als «Tread Control»' && flog === '[{"on":true},{"ctl":true}]';
+    return { ok, d: `Start «${yh}»; Untertitel [${all.subs.join(' | ')}]; Abzeichen ${all.st}, Warnpunkte ${all.bad}; Kinomap [${km.pts.join('; ')}]; Zwift [${zw1.pts}]; Steuerung aus «${inc.sm}», nach «Daten an Apps» «${inc2.sm}»; ${on}; Befehle ${flog}` };
   });
   await flow('Verlauf: Balken km je Tag (4 Wochen), Kennzahlen, Liste darunter, Seite gefüllt', async p => {
     await p.goto(BASE + '?demo=1#/history'); await p.waitForTimeout(1000);
@@ -965,10 +971,10 @@ if (!ONLY.length) {
     });
     await p.route('**/api/state**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, st: 'BEREIT', err: '', speed: 0, incline: 0, tSpeed: 8, tIncl: 0, hr: 70, hrOk: true, pulled: 0, safe: 1, elapsed: 0, dist: 0, kcal: 0, elev: 0, src: 'ui', prog: null }) }));
     await p.goto(BASE + '#/apps'); await p.waitForTimeout(900);
-    await p.click('.ap[data-pkg="org.jellyfin.mobile"]'); await p.click('.ap[data-pkg="com.kinomap.training"]'); await p.click('[data-p="dircon"]'); await p.click('[data-p="hideBar"]');
+    await p.click('.ap[data-pkg="org.jellyfin.mobile"]'); await p.click('.ap[data-pkg="com.kinomap.training"]'); await p.click('[data-p="pillGraph"]'); await p.click('[data-p="hideBar"]');
     const c = await p.evaluate(() => window.__calls), na = await p.$$eval('.ap.na', e => e.length), demo = await p.evaluate(() => document.documentElement.classList.contains('is-demo'));
     const tv = await p.$$eval('.ap[data-pkg="org.jellyfin.androidtv"]', e => e.length);
-    return { ok: c.includes('launch:org.jellyfin.mobile') && !c.some(x => x.includes('kinomap')) && c.includes('pref:dircon=true') && c.includes('pref:hideBar=true') && c[c.length - 1] === 'pref:hideBar=false' && na === 4 && !tv && !demo, d: `${c.join(', ')}; grau: ${na}` };
+    return { ok: c.includes('launch:org.jellyfin.mobile') && !c.some(x => x.includes('kinomap')) && c.includes('pref:pillGraph=false') && c.includes('pref:hideBar=true') && c[c.length - 1] === 'pref:hideBar=false' && na === 4 && !tv && !demo, d: `${c.join(', ')}; grau: ${na}` };
   });
   await flow('Zone laden: program, dann speed auf Tempo min; Leiste «Start», Hinweis ohne Puls', async p => {
     await p.goto(BASE + '?demo=1&puls=0#/zones'); await p.waitForTimeout(900);
@@ -1137,24 +1143,30 @@ if (!ONLY.length) {
     const ok2 = tb.join('|') === 'Start|Training|Pläne|Apps|Verlauf';
     return { ok: ok && ok2, d: all.map(x => `${x.t} ${x.ls.toFixed(2)} em`).join(', ') + `; Reiter [${tb.join(', ')}]` };
   });
-  await flow('Gesperrter Schalter «Steigung von Apps steuern»: grau, Schloss, Grund «derzeit keine kompatible App», nimmt nichts an; früher gespeichertes «an» wird aus', async p => {
-    await p.addInitScript(() => {
-      window.__calls = [];
-      window.TreadNative = { token: () => 't', installed: () => '[]', launch: () => true, setPref: (k, v) => { window.__calls.push(k + '=' + v); } };
-      if (!sessionStorage.getItem('ai')) { sessionStorage.setItem('ai', '1'); localStorage.setItem('tx.prefs.v1', JSON.stringify({ hideBar: true, appIncline: true })); }
-    });
+  await flow('App steuert (FTMS): Chip «Kinomap steuert» im Laufkopf, Tipp gibt die Steuerung an die Konsole zurück (appRelease)', async p => {
+    const cmds = [];
+    await p.addInitScript(() => { window.TreadNative = { token: () => 't', installed: () => '[]', launch: () => true, setPref: () => {} }; });
+    await p.route('**/api/state**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, st: 'LAEUFT', err: '', note: '', speed: 10, incline: 2, tSpeed: 10, tIncl: 2, hr: 140, hrOk: true, pulled: 0, safe: 1, elapsed: 600, dist: 1.6, kcal: 120, elev: 10, src: 'app', app: 'Kinomap', appCtl: true, prog: null }) }));
+    await p.route('**/api/cmd', r => { try { cmds.push(JSON.parse(r.request().postData() || '{}').c); } catch (e) {} r.fulfill({ contentType: 'application/json', body: '{"ok":true}' }); });
+    await p.goto(BASE + '#/run'); await p.waitForTimeout(1500);
+    const c = await p.evaluate(() => { const b = document.querySelector('.appchip'); if (!b) return null; const r = b.getBoundingClientRect(); return { t: b.textContent.trim(), al: b.getAttribute('aria-label'), h: r.height }; });
+    if (c) { await p.click('.appchip'); await p.waitForTimeout(400); }
+    const ok = !!c && c.t === 'Kinomap steuert' && c.al === 'Steuerung durch Kinomap beenden' && c.h >= 48 && cmds.includes('appRelease');
+    return { ok, d: c ? `Chip «${c.t}» (${c.al}), Höhe ${c.h}; Befehle [${cmds.join(', ')}]` : 'kein Chip' };
+  });
+  await flow('Gesperrter Schalter «Apps dürfen Tempo und Steigung steuern»: grau, Schloss, Grund «zuerst Daten an Apps einschalten», nimmt nichts an', async p => {
     await p.goto(BASE + '?demo=1&frozen=1#/apps'); await p.waitForTimeout(900);
-    const r = () => p.evaluate(() => { const b = document.querySelector('[data-p="appIncline"]'), lk = b.querySelector('svg'), ref = document.createElement('div'); ref.innerHTML = window.TX.I('lock');
-      const tg = b.querySelector('.tg'), on = document.querySelector('[data-p="dircon"]');
+    const r = () => p.evaluate(() => { const b = document.querySelector('[data-f="ctl"]'), lk = b.querySelector('svg'), ref = document.createElement('div'); ref.innerHTML = window.TX.I('lock');
+      const tg = b.querySelector('.tg'), on = document.querySelector('[data-f="on"]');
       return { dis: b.disabled, ad: b.getAttribute('aria-disabled'), ch: b.getAttribute('aria-checked'), sm: b.querySelector('small').textContent, lock: !!lk && lk.outerHTML === ref.firstChild.outerHTML, off: tg.classList.contains('off'),
-        col: getComputedStyle(b).color, norm: getComputedStyle(on).color, tgbg: getComputedStyle(tg).backgroundColor, pref: JSON.parse(localStorage.getItem('tx.prefs.v1')).appIncline, calls: window.__calls.slice() }; });
+        col: getComputedStyle(b).color, norm: getComputedStyle(on).color, tgbg: getComputedStyle(tg).backgroundColor, calls: (window.__txFtmsLog || []).length }; });
     const a = await r();
-    await p.evaluate(() => { window.__calls.length = 0; const b = document.querySelector('[data-p="appIncline"]'); b.click(); b.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
-    await p.click('[data-p="appIncline"]', { force: true }); await p.waitForTimeout(200);
+    await p.evaluate(() => { const b = document.querySelector('[data-f="ctl"]'); b.click(); b.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    await p.click('[data-f="ctl"]', { force: true }); await p.waitForTimeout(200);
     const b = await r();
-    const ok = a.dis && a.ad === 'true' && a.ch === 'false' && a.sm === 'derzeit keine kompatible App' && a.lock && a.off && a.col !== a.norm && a.col === 'rgb(164, 169, 187)' && a.tgbg !== 'rgb(47, 210, 122)' &&
-      a.pref === false && a.calls.join() === 'appIncline=false' && b.ch === 'false' && b.off && b.calls.length === 0 && b.pref === false;
-    return { ok, d: `gesperrt ${a.dis} (aria ${a.ad}), Schloss ${a.lock}, «${a.sm}», Farbe ${a.col}; altes «an» → ${a.pref} [${a.calls}]; nach Tippen ${b.ch}, Aufrufe ${b.calls.length}` };
+    const ok = a.dis && a.ad === 'true' && a.ch === 'false' && a.sm === 'zuerst «Daten an Apps und Uhren» einschalten' && a.lock && a.off && a.col !== a.norm && a.col === 'rgb(164, 169, 187)' && a.tgbg !== 'rgb(47, 210, 122)' &&
+      b.ch === 'false' && b.off && b.calls === 0;
+    return { ok, d: `gesperrt ${a.dis} (aria ${a.ad}), Schloss ${a.lock}, «${a.sm}», Farbe ${a.col}; nach Tippen ${b.ch}, Befehle ${b.calls}` };
   });
   await flow('Startseite: ohne Verlauf «Schnellstart» statt «Letzten Lauf wiederholen», mit Verlauf Wiederholen aktiv', async p => {
     await p.goto(BASE + '?demo=1&frozen=1&leer=1#/'); await p.waitForTimeout(900);

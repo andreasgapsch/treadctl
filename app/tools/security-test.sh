@@ -9,6 +9,8 @@ t() { if [ "$2" = "$3" ]; then echo "  OK   $1 ($2)"; P=$((P+1)); else echo "  F
 code() { curl -s -o /dev/null -w %{http_code} -m 4 "$@"; }
 t "Steuern ohne Token" "$(code -X POST $U/cmd -d '{"c":"speed","v":5}')" 403
 t "Steuern mit falschem Token" "$(code -X POST -H 'X-Token: falsch' $U/cmd -d '{"c":"speed","v":5}')" 403
+t "FTMS-Einstellungen ohne Token" "$(code -X POST $U/ftms -d '{"ctl":true}')" 403
+t "FTMS-Einstellungen mit fremdem Origin" "$(code -X POST -H "X-Token: $TK" -H 'Origin: http://boese.example' $U/ftms -d '{"ctl":true}')" 403
 t "Steuern per GET" "$(code "$U/cmd?c=start")" 404
 t "Alte Route /api/start" "$(code $U/start)" 404
 t "Fremder Host (DNS-Rebinding)" "$(code -H 'Host: boese.example:8765' $U/state)" 403

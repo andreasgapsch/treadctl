@@ -53,3 +53,15 @@ ueber-TCP kurz), `su` ist gesperrt.
 Sicherheitsschlüssel bleiben erhalten. Weg 2 (serielle Leitung direkt) ist dokumentiert und am Gerät
 validiert (`serial-protocol.md`, `tools/lcb.py`), wird aber nicht verwendet: dafür müsste die Herstellersoftware
 ganz ersetzt werden. Schnittstelle, Befehle und Sicherheitsregeln: `api.md`.
+
+## Hersteller-FTMS (Befund 28.10.2026)
+
+- Die Herstellersoftware hat einen eigenen FTMS-Server (`GATTServerService` im Prozess
+  `com.jhtp.atsoul.gattserverservice`, uid 1000, nicht exportiert, START_STICKY). Er wirbt beim Start sofort als
+  «TM XP_…» und meldet Daten nur, solange die eigene Workout-Engine läuft (`DATA_RUN_STATE_INT == 1`).
+- Sein Steuerpunkt schreibt Tempo und Steigung direkt auf den Bus (`ACTION_SET_SPEED_KPH_FLOAT`) und startet über
+  eine eingespielte GO-Taste: an Countdown, Einlaufen und Rampen von Tread Control vorbei.
+- Darum hält `FtmsServer` ihn an (`ACTION_FTMS_STOP_ADVERTISE` und `stopService`, Prüfung alle 30 s) und stellt
+  eigenes FTMS mit den Regeln von `Core.appCmd` bereit. `keepJht` startet ihn wieder.
+- Funkmodul: MediaTek MT7663 (USB, Bluetooth 5.0). Android meldet keine Mehrfach- und keine erweiterte Werbung,
+  ein Werbesatz genügt (nach jeder Verbindung neu gestartet).

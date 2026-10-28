@@ -59,7 +59,7 @@ public class Core implements Runnable {
     double[] segStart; JSONArray segs;
     boolean progDone; double endTimer = -1;
     // Zonen
-    boolean auto = true; long manualAt = 0; double zoneTimer, lossT; int lastHr; double sameHrT;
+    boolean auto = true; volatile long manualAt = 0; double zoneTimer, lossT; int lastHr; double sameHrT;
     JSONObject lastSummary;
     // Strecke
     RoutePlan rp; double offS, offI, finishT = -1;
@@ -67,9 +67,14 @@ public class Core implements Runnable {
     double rampTarget = -1, rampLeft; String rampFrom = "programm";
     // Einlaufen: jeder Anlauf (Start, Weiter, Taste) laeuft 15 s mit 1 km/h, erst danach geht es zum Soll
     static final float HOLD_SPEED = 1.0f; static final double HOLD_SECONDS = 15;
-    double holdLeft = 0, holdTarget = -1;
+    volatile double holdLeft = 0; double holdTarget = -1;
     // Start ueber die Geraetetaste: eigener 3-Sekunden-Countdown, STOP bricht ab
     long hwStartAt = 0; boolean hwResume; int inclDir, inclPulses; int inclIdx = -1; boolean routeFinish;
+    // Steuerung durch Apps (FTMS, DIRCON): aus, bis der Laeufer sie erlaubt; nie Start, STOP immer
+    static final long APP_MANUAL_MS = 30000, APP_RATE_MS = 2000;
+    volatile boolean appCtl = false; volatile float appMaxS = 14f, appMaxI = 10f;
+    volatile String appName = ""; volatile long appAt = 0; long appCmdAt = 0; boolean appBlocked = false;
+    double appPendS = -1, appPendI = -1;
 
     // Blackbox
     File box;
@@ -239,7 +244,7 @@ public class Core implements Runnable {
         }
         // Gerätetasten aendern das Soll: uebernehmen
         if (LAEUFT.equals(st) && now - lastSet > 3000) {
-            try { float jt = bus.getFloat(D_TGT_S); if (jt > 0.5f && Math.abs(jt - tSpeed) > 0.15f) { tSpeed = jt; src = "geraet"; routeSpeedOffset(); } } catch (Throwable e) {}
+            try { float jt = bus.getFloat(D_TGT_S); if (jt > 0.5f && Math.abs(jt - tSpeed) > 0.15f) { tSpeed = jt; src = "geraet"; manualAt = now; routeSpeedOffset(); } } catch (Throwable e) {}
         }
 
         prevSpeed = speed;
@@ -285,6 +290,9 @@ public class Core implements Runnable {
             if (holdLeft <= 0) { holdLeft = 0; double t = holdTarget; holdTarget = -1; note = ""; if (t > HOLD_SPEED + 0.05) rampSpeed(t, "programm"); }
         }
         if (LAEUFT.equals(st) && rampTarget > 0 && holdLeft <= 0) { rampLeft -= dt; if (rampLeft <= 0) rampSpeed(rampTarget, rampFrom); }
+        if ((appPendS >= 0 || appPendI >= 0) && now - appCmdAt >= APP_RATE_MS) {
+            if (appAllowed() == 0) appApply(); else { appPendS = -1; appPendI = -1; }
+        }
         if (endTimer >= 0 && LAEUFT.equals(st)) {
             if (speed <= 3.3f) endTimer += dt;            // die 10 s laufen erst, wenn das Band im Gehtempo ist
             if (endTimer >= 10) { endTimer = -1; doStop("programm"); note = "Programm beendet"; }
@@ -475,7 +483,7 @@ public class Core implements Runnable {
                     resetRun();
                     new Thread(new Runnable() { public void run() { AppHygiene.trim(ctx); } }).start();   // Speicher fuer Musik und Videos waehrend des Laufs
                     bus.sendEvent(A_START);
-                    st = LAEUFT; pausedAt = 0; src = from; note = "";
+                    st = LAEUFT; pausedAt = 0; src = from; note = ""; appBlocked = false; appPendS = appPendI = -1;
                     beginHold(tSpeed);
                     bus.putFloat(A_SPEED, tSpeed); bus.putFloat(A_INCL, tIncl);
                     if (prog != null) { progT = 0; segIdx = -1; inclIdx = -1; progDone = false; zoneTimer = 0; lossT = 0; routeFinish = false; if (rp != null) { segIdx = 0; inclIdx = 0; } }
@@ -535,6 +543,7 @@ public class Core implements Runnable {
                     int i = Math.max(0, segIdx), ii = Math.max(0, inclIdx);
                     rampSpeed(rp.sp[i] + offS, from); applyIncl((float) (rp.in[ii] + offI), from); return ok();
                 }
+                if ("appRelease".equals(c)) { appBlocked = true; appPendS = appPendI = -1; log("app-freigabe", tSpeed); return ok(); }   // «Zurück an Konsole»
                 if ("hideBar".equals(c)) { hideBar = j.optBoolean("on", true); barShown = null; return ok(); }
                 if ("auto".equals(c)) { auto = j.optBoolean("on", true); manualAt = 0; return ok(); }
                 if ("profile".equals(c)) {
@@ -544,6 +553,49 @@ public class Core implements Runnable {
                 return err("unbekannter Befehl");
             } catch (Throwable e) { return err(String.valueOf(e.getMessage())); }
         }
+    }
+
+    // ---------------- Steuerung durch Apps ----------------
+    /** 0 = erlaubt, sonst Ergebniscode des FTMS-Steuerpunkts (nicht erlaubt bzw. fehlgeschlagen). */
+    int appAllowed() {
+        if (!appCtl || appBlocked) return FtmsData.RES_NOT_PERMITTED;
+        if (!LAEUFT.equals(st) || holdLeft > 0) return FtmsData.RES_FAILED;            // nur im Lauf, nicht im Einlaufen
+        if (prog != null && !progDone) return FtmsData.RES_NOT_PERMITTED;              // Programme fuehren das Band
+        if (clock() - manualAt < APP_MANUAL_MS) return FtmsData.RES_NOT_PERMITTED;    // Handeingabe hat 30 s Vorrang
+        return 0;
+    }
+    /** Befehl einer App (Steuerpunkt). Nie Start oder Weiter; STOP wirkt immer. Rueckgabe: FtmsData.RES_*. */
+    int appCmd(int op, double v, String app) {
+        if (op == FtmsData.OP_STOP) { stopNow("app"); return FtmsData.RES_OK; }
+        synchronized (lock) {
+            if (op == FtmsData.OP_START) { log("app-start abgewiesen", tSpeed); return FtmsData.RES_NOT_PERMITTED; }
+            if (op == FtmsData.OP_REQUEST || op == FtmsData.OP_RESET) return appCtl && !appBlocked ? FtmsData.RES_OK : FtmsData.RES_NOT_PERMITTED;
+            if (op != FtmsData.OP_SPEED && op != FtmsData.OP_INCL) return FtmsData.RES_UNSUPPORTED;
+            if (Double.isNaN(v)) return FtmsData.RES_INVALID;
+            int a = appAllowed(); if (a != 0) return a;
+            if (op == FtmsData.OP_SPEED) {
+                if (v < S_MIN - 0.05 || v > S_MAX + 0.05) return FtmsData.RES_INVALID;
+                v = Math.min(v, appMaxS);
+                if (leaseLost && v > tSpeed) return FtmsData.RES_NOT_PERMITTED;   // ohne Oberflaeche nicht hochregeln
+                appPendS = v;
+            } else {
+                if (v < -0.05 || v > I_MAX + 0.05) return FtmsData.RES_INVALID;
+                v = Math.max(0, Math.min(v, appMaxI));
+                if (leaseLost && v > tIncl) return FtmsData.RES_NOT_PERMITTED;
+                appPendI = v;
+            }
+            appName = app == null ? "" : app; appAt = clock();
+            if (clock() - appCmdAt >= APP_RATE_MS) appApply();   // hoechstens ein Befehl je 2 s, spaetere Werte im naechsten Takt
+            return FtmsData.RES_OK;
+        }
+    }
+    void appApply() {
+        appCmdAt = clock();
+        try {
+            if (appPendS >= 0) { endHold(); rampSpeed(appPendS, "app"); log("app tempo", (float) appPendS); }
+            if (appPendI >= 0) { applyIncl((float) appPendI, "app"); log("app steigung " + appPendI, tSpeed); }
+        } catch (Throwable e) { log("app-fehler", tSpeed); }
+        appPendS = -1; appPendI = -1;
     }
 
     /** Einlaufen beginnen: Band mit 1 km/h, Ziel merken. */
@@ -747,6 +799,8 @@ public class Core implements Runnable {
             o.put("src", src); o.put("hfmax", hfmax); o.put("weight", weight); o.put("hrSrc", hrSrc);
             if (fanKnown) o.put("fan", new JSONObject().put("l", Math.max(0, fanLevel)).put("a", fanAuto).put("c", fanLevel >= 0));   // Platz in der Pille bleibt, solange ein Ventilator gespeichert ist
             if (holdLeft > 0) { o.put("hold", Math.ceil(holdLeft)); o.put("holdTo", r1((float) holdTarget)); }
+            if (appCtl) o.put("appCtl", true);
+            if (LAEUFT.equals(st) && !appBlocked && appAt > 0 && clock() - appAt < 15000) o.put("app", appName);   // App steuert gerade
             if (hwStartAt > 0) o.put("cd", Math.max(1, (int) Math.ceil((hwStartAt - clock()) / 1000.0))); o.put("top", topPkg); o.put("bar", barShown == null || barShown);
             if (prog != null) o.put("prog", progJson(withHist)); else o.put("prog", JSONObject.NULL);
             if (withHist) o.put("hist", histJson());

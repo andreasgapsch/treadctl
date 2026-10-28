@@ -9,5 +9,5 @@ if [ ! -f "$J" ]; then   # org.json (Public Domain) nur fuer die Tests, von Mave
 fi
 rm -rf "$D/cls"; mkdir -p "$D/cls"
 javac -nowarn -d "$D/cls" -cp "$D/lib/json-20240303.jar" \
-  $(find "$D/stubs" -name '*.java') "$APP/src/com/gapsch/treadctl/Core.java" "$APP/src/com/gapsch/treadctl/RoutePlan.java" "$APP/src/com/gapsch/treadctl/KeyReader.java" "$APP/src/com/gapsch/treadctl/AppHygiene.java" "$D/CoreSzenarien.java" 2>&1 | grep -v "^Note:" || true
+  $(find "$D/stubs" -name '*.java') "$APP/src/com/gapsch/treadctl/Core.java" "$APP/src/com/gapsch/treadctl/RoutePlan.java" "$APP/src/com/gapsch/treadctl/KeyReader.java" "$APP/src/com/gapsch/treadctl/AppHygiene.java" "$APP/src/com/gapsch/treadctl/FtmsData.java" "$D/CoreSzenarien.java" 2>&1 | grep -v "^Note:" || true
 java -Dassets="$APP/assets" -cp "$D/cls:$D/lib/json-20240303.jar" com.gapsch.treadctl.CoreSzenarien

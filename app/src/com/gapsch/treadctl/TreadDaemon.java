@@ -22,6 +22,7 @@ public class TreadDaemon extends Service {
     HrBle hrBle;
     MediaWatch media;
     BleProbe probe;
+    FtmsServer ftms;
     FanControl fan;
 
     @Override public IBinder onBind(Intent i) { return null; }
@@ -45,6 +46,7 @@ public class TreadDaemon extends Service {
         probe = new BleProbe(this, core);   // Werkzeug zum Einbinden neuer BLE-Geraete
         fan = new FanControl(this, core); try { fan.start(); } catch (Throwable e) {}   // Ventilator CYCPLUS F1
         hrBle = new HrBle(this, core); try { hrBle.startup(); } catch (Throwable e) {}   // gekoppelter Pulsmesser
+        ftms = new FtmsServer(this, core); try { ftms.start(); } catch (Throwable e) {}   // Laufband als FTMS-Geraet und Laufsensor fuer Apps und Uhren
         httpd = new Httpd(this, PORT);
         new Thread(httpd, "httpd").start();
         Log.i(T, "Dienst gestartet, uid=" + android.os.Process.myUid());

@@ -35,6 +35,9 @@ operation can cause falls and serious injury. Use entirely **at your own risk**.
 - After a service restart it only decides on reliable readings; with the belt standing the run continues only at walking speed.
 - If the UI hangs, the pill appears with STOP.
 - Control API on `127.0.0.1` only, with token, without CORS.
+- Apps over Bluetooth (FTMS) can never start or resume the belt; STOP from an app always works. Speed and incline
+  from apps are off by default and, when allowed, limited (default 14 km/h, 10 %), rate-limited and overridden by
+  every manual input for 30 s.
 
 These measures replace neither the safety key nor the attention of the person running.
 

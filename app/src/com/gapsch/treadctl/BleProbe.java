@@ -118,7 +118,18 @@ public class BleProbe {
         try {
             JSONObject o = new JSONObject(); o.put("ok", true); o.put("scanning", scanning); o.put("state", state);
             JSONArray l = new JSONArray(); for (JSONObject f : found.values()) l.put(f); o.put("found", l);
-            o.put("services", services); o.put("log", log); return o.toString();
+            o.put("services", services); o.put("log", log);
+            // Faehigkeiten fuer einen eigenen FTMS-Server (Peripherie-Rolle) und Laufzustand der Hersteller-Workout-Engine:
+            // deren FTMS-Steuerpunkt wirkt nur bei DATA_RUN_STATE_INT == 1
+            JSONObject caps = new JSONObject(); BluetoothAdapter a = BluetoothAdapter.getDefaultAdapter();
+            if (a != null && a.isEnabled()) {
+                caps.put("multiAdv", a.isMultipleAdvertisementSupported()); caps.put("extAdv", a.isLeExtendedAdvertisingSupported());
+                caps.put("maxAdvLen", a.getLeMaximumAdvertisingDataLength()); caps.put("phy2m", a.isLe2MPhySupported());
+                caps.put("advertiser", a.getBluetoothLeAdvertiser() != null);
+            }
+            try { caps.put("jhtRunState", core.bus.isConnected() ? core.bus.getInt("DATA_RUN_STATE_INT") : -1); } catch (Throwable e) { caps.put("jhtRunState", "fehler: " + e); }
+            o.put("caps", caps);
+            return o.toString();
         } catch (Throwable e) { return Core.err(String.valueOf(e)); }
     }
 
