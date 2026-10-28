@@ -406,6 +406,7 @@ public class OverlayService extends Service {
             case "side": {
                 // Schmale Leiste am linken Rand: zurueck zu Tread Control, Musik Wiedergabe/Pause, STOP (wirkt wie in der Pille)
                 pill.setOrientation(LinearLayout.VERTICAL); pill.setPadding(dp(6), dp(8), dp(6), dp(8));
+                pill.setBackground(round(0x66181A21, dp(34), 0x26FFFFFF));   // halb durchsichtig: das Video scheint durch, STOP bleibt kraeftig rot
                 pill.addView(pb("back", WHITE, new Runnable() { public void run() { openUi("/"); } }));
                 View mu = pb("music", WHITE, new Runnable() { public void run() { new Thread(new Runnable() { public void run() { try { Api.media(OverlayService.this, new JSONObject().put("a", "toggle")); } catch (Throwable e) {} } }).start(); } });
                 pill.addView(mu, lpWrap(0, dp(8), 0, 0));
