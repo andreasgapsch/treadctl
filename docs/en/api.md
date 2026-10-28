@@ -162,6 +162,10 @@ console itself (`lan: false`); `lan: true` opens it to apps in the Wi-Fi (PC, Ap
 - Start/resume from an app: only acknowledged while the belt is running (apps expect success). If Kinomap or Zwift runs on the
   console in the foreground and app control is allowed, start acts like the START key (3 s countdown, STOP cancels, 15 s at
   1 km/h); otherwise "not permitted". END in the pill stays in these apps (summary in the history).
+- The console keys win: after STOP at the console (key, pill, end) no app start for 10 s. Kinomap repeats a rejected start up to
+  about 17 s at ten times per second (START, STOP, ...), so an app start only counts after 3 s without a rejected start.
+- Speed or incline key: the app receives the new target as machine status 0x05/0x06 (no longer 0xFF "control permission lost",
+  after which Kinomap and Zwift never request control again); its commands take effect again after 30 s.
 - Opcode `0x11` (Indoor Bike Simulation, Zwift): the grade (bytes 3 and 4, 0.01 %) acts as an incline command, downhill
   becomes 0. Wahoo Run service (`A026EE0E-…`, E03E write, E03D notify): Zwift sends `11 lo hi` (0.01 %), DIRCON also
   `46 lo hi`; same rules, no answer over Bluetooth, `FE op 02` over DIRCON.

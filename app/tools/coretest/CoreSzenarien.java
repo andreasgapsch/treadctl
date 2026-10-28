@@ -369,15 +369,34 @@ public class CoreSzenarien {
             CoreSzenarien s = new CoreSzenarien(); s.run(0.4); s.c.appCtl = true;
             s.c.topPkg = "com.example.fremd";
             t("App-Start ohne eigene App im Vordergrund abgewiesen", s.c.appCmd(FtmsData.OP_START, Double.NaN, "App") == FtmsData.RES_NOT_PERMITTED && s.c.hwStartAt == 0, "");
-            s.c.topPkg = "com.kinomap.training";
+            s.c.topPkg = "com.kinomap.training"; s.c.appStartRejAt = 0;   // neu angetippt (clock() ist echte Zeit)
             int r = s.c.appCmd(FtmsData.OP_START, Double.NaN, "App"); s.run(1);
             boolean waiting = "BEREIT".equals(s.c.st) && s.c.hwStartAt > 0;
             s.c.appCmd(FtmsData.OP_STOP, 1, "App"); s.run(4);
             t("Kinomap-Start: Countdown läuft, STOP bricht ab", r == FtmsData.RES_OK && waiting && "BEREIT".equals(s.c.st) && s.c.hwStartAt == 0, s.c.st);
-            s.run(16); s.c.appCmd(FtmsData.OP_START, Double.NaN, "App"); s.run(3.6);
+            s.run(16); s.c.appStartRejAt = 0; s.c.appCmd(FtmsData.OP_START, Double.NaN, "App"); s.run(3.6);
             t("Kinomap-Start nach Countdown: Band läuft mit 1 km/h an", "LAEUFT".equals(s.c.st) && s.c.tSpeed <= 1.05f, s.c.st + " " + s.c.tSpeed);
             CoreSzenarien q = new CoreSzenarien(); q.run(0.4); q.c.topPkg = "com.kinomap.training";
             t("Ohne erlaubte App-Steuerung kein Start", q.c.appCmd(FtmsData.OP_START, Double.NaN, "App") == FtmsData.RES_NOT_PERMITTED && q.c.hwStartAt == 0, "");
+        }
+        { // 31 Geraetetasten in Kinomap: STOP an der Konsole gilt, auch wenn die App gleich wieder START schickt (Zeitsprung ueber consoleStopAt, clock() ist echte Zeit)
+            CoreSzenarien s = new CoreSzenarien(); s.run(0.4); s.c.appCtl = true; s.c.topPkg = "com.kinomap.training";
+            s.c.appCmd(FtmsData.OP_START, Double.NaN, "App"); s.run(20);
+            boolean ran = "LAEUFT".equals(s.c.st);
+            s.c.hwKey(KeyReader.K_STOP); s.run(0.5);
+            int r = s.c.appCmd(FtmsData.OP_START, Double.NaN, "App"); s.run(5);
+            t("STOP-Taste in Kinomap: App-START danach abgewiesen, kein Countdown", ran && r == FtmsData.RES_NOT_PERMITTED && "PAUSE".equals(s.c.st) && s.c.hwStartAt == 0, s.c.st + " r=" + r);
+            s.c.consoleStopAt -= 11000; int loop = s.c.appCmd(FtmsData.OP_START, Double.NaN, "App"); s.c.appCmd(FtmsData.OP_STOP, 1, "App");
+            t("Wiederholungsschleife der App startet auch nach 10 s nicht", loop == FtmsData.RES_NOT_PERMITTED && s.c.hwStartAt == 0, "r=" + loop);
+            s.c.appStartRejAt -= 4000; r = s.c.appCmd(FtmsData.OP_START, Double.NaN, "App"); boolean cd = s.c.hwStartAt > 0; s.run(4);
+            t("Nach 10 s und 3 s Ruhe darf Kinomap wieder starten (Countdown)", r == FtmsData.RES_OK && cd && "LAEUFT".equals(s.c.st), s.c.st + " r=" + r);
+            s.run(20); s.cmd("{\"c\":\"stop\"}"); s.run(1);
+            t("STOP in der Pille sperrt den App-Start ebenso", s.c.appCmd(FtmsData.OP_START, Double.NaN, "App") == FtmsData.RES_NOT_PERMITTED && s.c.hwStartAt == 0, s.c.st);
+            s.run(10); s.c.consoleStopAt -= 11000; s.c.hwKey(KeyReader.K_GO); boolean cd2 = s.c.hwStartAt > 0; s.run(4);
+            t("START-Taste in Kinomap: Weiter mit Countdown", cd2 && "LAEUFT".equals(s.c.st), s.c.st);
+            s.c.appCmd(FtmsData.OP_STOP, 1, "App"); s.run(10); s.c.appStartRejAt = 0;
+            t("STOP aus der App sperrt den App-Start nicht", s.c.appCmd(FtmsData.OP_START, Double.NaN, "App") == FtmsData.RES_OK && s.c.hwStartAt > 0, s.c.st);
+            s.c.hwKey(KeyReader.K_STOP); s.run(1);
         }
         { // 29 Standby der Konsole (ERP) und Beruehrungsmeldung
             CoreSzenarien s = new CoreSzenarien(); s.run(31);

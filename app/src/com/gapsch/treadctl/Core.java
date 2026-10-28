@@ -71,7 +71,7 @@ public class Core implements Runnable {
     // Start ueber die Geraetetaste: eigener 3-Sekunden-Countdown, STOP bricht ab
     long hwStartAt = 0; boolean hwResume; int inclDir, inclPulses; int inclIdx = -1; boolean routeFinish;
     // Steuerung durch Apps (FTMS, DIRCON): aus, bis der Laeufer sie erlaubt; nie Start, STOP immer
-    static final long APP_MANUAL_MS = 30000, APP_RATE_MS = 2000;
+    static final long APP_MANUAL_MS = 30000, APP_RATE_MS = 2000, APP_AFTER_STOP_MS = 10000, APP_START_QUIET_MS = 3000;
     // Standby der Herstellersoftware (ERP): Index 0 = 30 min, 1 = 15 min, 2 = 10 min (Werk), 3 = aus. Ihr Zeitgeber
     // laeuft bei Beruehrung, Geraetetasten und laufendem Band neu an; Beruehrungen in unserer Oberflaeche und in Apps
     // meldet die Pille als EVENT_TOUCH, damit die Konsole nur nach echter Ruhe schlaeft.
@@ -310,7 +310,8 @@ public class Core implements Runnable {
         }
     }
 
-    long pausedAt = 0, lastStopAt = 0; double pauseIdle = 0;   // Sekunden in PAUSE ohne Eingabe
+    long pausedAt = 0, lastStopAt = 0; double pauseIdle = 0;
+    volatile long consoleStopAt = 0, appStartRejAt = 0; final java.util.HashMap<String, Long> appLogAt = new java.util.HashMap<String, Long>();   // STOP an der Konsole (Taste, Pille); Logbuch ohne Wiederholungen   // Sekunden in PAUSE ohne Eingabe
     float prevSpeed = 0f;
     long lastSet = 0;
 
@@ -459,14 +460,16 @@ public class Core implements Runnable {
     void doStop(String from) { try { bus.sendEvent(A_STOP); stopSentAt = clock(); } catch (Throwable e) {} doStopState(from); }
     void doStopState(String from) {
         if (LAEUFT.equals(st)) { st = PAUSE; pausedAt = clock(); }
-        lastStopAt = clock();
-        endTimer = -1; rampTarget = -1; holdLeft = 0; holdTarget = -1; hwStartAt = 0; src = from; log("stop", speed);
+        lastStopAt = clock(); if (!"app".equals(from)) consoleStopAt = lastStopAt;
+        endTimer = -1; rampTarget = -1; holdLeft = 0; holdTarget = -1; hwStartAt = 0; src = from;
+        if ("app".equals(from)) appLog("stop app"); else log("stop", speed);   // Apps schicken STOP teils zehnmal je Sekunde
     }
 
     /** Lauf beenden: STOP (auch aus PAUSE, das Band darf nie in BEREIT weiterlaufen), Zusammenfassung, BEREIT. Aufruf unter lock. */
     JSONObject endRun(String from) throws Exception {
         if (LAEUFT.equals(st) || speed > 0.3f) doStop(from);
         try { bus.putFloat(A_INCL, 0f); } catch (Throwable e) {}
+        if (!"app".equals(from)) consoleStopAt = clock();
         JSONObject sum = summary();
         lastSummary = sum;
         try { java.nio.file.Files.write(new File(ctx.getFilesDir(), "letzter-lauf.json").toPath(), sum.toString().getBytes("UTF-8")); } catch (Throwable e) {}   // nicht nur im RAM
@@ -594,12 +597,17 @@ public class Core implements Runnable {
                 // App auf der Konsole selbst im Vordergrund (Kinomap, Zwift): wie die START-Taste, 3 s Countdown, STOP bricht ab
                 if (appCtl && !appBlocked && AppHygiene.ownDisplay(topPkg) && (BEREIT.equals(st) || PAUSE.equals(st)) && speed < 0.3f) {
                     if (hwStartAt > 0) return FtmsData.RES_OK;
-                    if (pulled != 0 || safe != 1 || photoLock()) { log("app-start ignoriert (Schlüssel/Sperre)", 0); return FtmsData.RES_FAILED; }
+                    // STOP an der Konsole (Taste, Pille) gilt: eine App, die gleich wieder START schickt, startet 10 s lang nichts.
+                    // Kinomap wiederholt einen abgewiesenen Start bis zu 10 s lang zehnmal je Sekunde (START, STOP, START ...):
+                    // ein Start gilt erst, wenn die App 3 s lang keinen abgewiesenen Start geschickt hat (also neu angetippt wurde)
+                    if (clock() - consoleStopAt < APP_AFTER_STOP_MS) { appStartRejAt = clock(); appLog("app-start nach STOP an der Konsole abgewiesen"); return FtmsData.RES_NOT_PERMITTED; }
+                    if (clock() - appStartRejAt < APP_START_QUIET_MS) { appStartRejAt = clock(); appLog("app-start in Wiederholungsschleife abgewiesen"); return FtmsData.RES_NOT_PERMITTED; }
+                    if (pulled != 0 || safe != 1 || photoLock()) { appStartRejAt = clock(); appLog("app-start ignoriert (Schlüssel/Sperre)"); return FtmsData.RES_FAILED; }
                     hwResume = PAUSE.equals(st); armAt = clock(); hwStartAt = armAt + 3000; pauseIdle = 0;
                     note = "Band läuft in 3 s an · STOP bricht ab"; log("app start " + topPkg, 0);
                     return FtmsData.RES_OK;
                 }
-                log("app-start abgewiesen", tSpeed); return FtmsData.RES_NOT_PERMITTED;
+                appStartRejAt = clock(); appLog("app-start abgewiesen"); return FtmsData.RES_NOT_PERMITTED;
             }
             if (op == FtmsData.OP_REQUEST || op == FtmsData.OP_RESET) return appCtl && !appBlocked ? FtmsData.RES_OK : FtmsData.RES_NOT_PERMITTED;
             if (op != FtmsData.OP_SPEED && op != FtmsData.OP_INCL) return FtmsData.RES_UNSUPPORTED;
@@ -621,6 +629,8 @@ public class Core implements Runnable {
             return FtmsData.RES_OK;
         }
     }
+    /** Apps wiederholen abgewiesene Befehle mehrmals je Sekunde: dieselbe Meldung hoechstens alle 5 s ins Logbuch. */
+    void appLog(String m) { synchronized (appLogAt) { Long t = appLogAt.get(m); if (t != null && clock() - t < 5000) return; appLogAt.put(m, clock()); } log(m, tSpeed); }
     void appApply() {
         appCmdAt = clock();
         try {

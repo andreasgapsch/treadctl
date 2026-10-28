@@ -162,6 +162,10 @@ von der Konsole selbst an (`lan: false`); `lan: true` öffnet es für Apps im WL
 - Start/Weiter einer App: bei laufendem Band nur bestätigt (Apps erwarten Erfolg). Läuft Kinomap oder Zwift auf der Konsole
   im Vordergrund und ist App-Steuerung erlaubt, wirkt der Start wie die START-Taste (3 s Countdown, STOP bricht ab, 15 s mit
   1 km/h); sonst «nicht erlaubt». BEENDEN in der Pille bleibt in diesen Apps (Zusammenfassung im Verlauf).
+- Tasten gehen vor: nach STOP an der Konsole (Taste, Pille, Beenden) 10 s kein App-Start. Kinomap wiederholt einen abgewiesenen
+  Start bis zu rund 17 s lang zehnmal je Sekunde (START, STOP, ...); ein App-Start gilt daher erst nach 3 s ohne abgewiesenen Start.
+- Tempo- oder Steigungstaste: die App erhält den neuen Sollwert als Maschinenzustand 0x05/0x06 (nicht mehr 0xFF «Steuerung
+  verloren», danach fordern Kinomap und Zwift die Steuerung nicht neu an); ihre Befehle wirken nach 30 s wieder.
 - Opcode `0x11` (Indoor Bike Simulation, Zwift): die Steigung (Bytes 3 und 4, 0.01 %) wirkt wie ein Steigungsbefehl,
   Gefälle wird 0. Wahoo-Run-Dienst (`A026EE0E-…`, E03E schreiben, E03D melden): Zwift schickt dort `11 lo hi`
   (0.01 %), DIRCON auch `46 lo hi`; gleiche Regeln, über Bluetooth ohne Antwort, über DIRCON `FE op 02`.

@@ -50,7 +50,7 @@ public class FtmsServer {
     final Map<String, Set<UUID>> subs = new HashMap<String, Set<UUID>>();   // Abos je Geraet (nur echte Gegenstellen, nicht Ventilator/Puls)
     final Map<String, String> names = new HashMap<String, String>();
     final Semaphore sent = new Semaphore(0);
-    Thread loop; long lastManual; String lastSt = ""; int lastTrain = -1; volatile long advRestartAt;
+    Thread loop; long lastManual; float lastTS = -1, lastTI = -1; String lastSt = ""; int lastTrain = -1; volatile long advRestartAt;
     final Object tx = new Object();
     double lastWg = Double.NaN; int lastWr = -1;   // Bluetooth-Meldungen nacheinander (eine Bestaetigung je Meldung)
 
@@ -314,8 +314,15 @@ public class FtmsServer {
                     else if (Core.LAEUFT.equals(lastSt) || Core.PAUSE.equals(lastSt)) emit(FtmsData.MACHINE, core.pulled == 1 ? FtmsData.machine(FtmsData.MS_SAFETY) : FtmsData.machineStop(false));
                     lastSt = st;
                 }
-                // Handeingabe an der Konsole: App verliert die Steuerung (30 s Vorrang)
-                if (core.manualAt != lastManual) { if (lastManual != 0 && core.appAt > 0) emit(FtmsData.MACHINE, FtmsData.machine(FtmsData.MS_LOST)); lastManual = core.manualAt; }
+                // Handeingabe an der Konsole (Tasten, Pille): neue Sollwerte melden, die App zeigt sie an; ihre Befehle wirken nach 30 s wieder.
+                // Nicht «Steuerung verloren»: danach muessten Apps die Steuerung neu anfordern, was Kinomap und Zwift nicht tun.
+                if (core.manualAt != lastManual) {
+                    lastManual = core.manualAt;
+                    float ts = core.tSpeed, ti = core.tIncl;
+                    if (Math.abs(ts - lastTS) > 0.05f) { emit(FtmsData.MACHINE, FtmsData.machineSpeed(ts)); lastTS = ts; }
+                    if (Math.abs(ti - lastTI) > 0.05f) { emit(FtmsData.MACHINE, FtmsData.machineIncl(ti)); lastTI = ti; }
+                }
+                lastTS = core.tSpeed; lastTI = core.tIncl;   // Vergleich mit dem vorigen Takt
             } catch (Throwable e) { Log.w(T, "ftms takt: " + e); }
         }
     }
