@@ -22,6 +22,12 @@ public class AppHygiene {
     /** Apps mit eigener Anzeige von Tempo und Steigung, die auf der Konsole selbst laufen: statt der Pille die Seitenleiste;
      *  ihr Start-Befehl gilt wie die START-Taste (die Person steht vor der Konsole). */
     static final String[] OWN_DISPLAY = { "com.kinomap.training", "com.zwift.zwiftgame" };
+    /** Hoehe der Leiste am unteren Rand (dp), ueber der die Pille sitzt: YouTube Reiter; YouTube Music Reiter und Mini-Player. */
+    static int bottomBarDp(String pkg) {
+        if ("app.revanced.android.youtube".equals(pkg) || "com.google.android.youtube".equals(pkg)) return 48;
+        if ("app.revanced.android.apps.youtube.music".equals(pkg) || "com.google.android.apps.youtube.music".equals(pkg)) return 96;
+        return 0;
+    }
     static boolean ownDisplay(String pkg) { for (String p : OWN_DISPLAY) if (p.equals(pkg)) return true; return false; }
     static boolean heavy(String pkg) { for (String p : HEAVY) if (p.equals(pkg)) return true; return false; }
     /** Alle anderen schweren Apps beenden (force-stop, Plattform-App), die eben gestartete bleibt. */

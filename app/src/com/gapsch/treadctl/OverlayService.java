@@ -310,7 +310,7 @@ public class OverlayService extends Service {
         lp.gravity = Gravity.TOP | Gravity.LEFT; lp.x = 0; lp.y = 0;
         // Vollbildvideo: Systemzeile weg, eigene Zeile ebenfalls
         topBar.setOnSystemUiVisibilityChangeListener(new View.OnSystemUiVisibilityChangeListener() {
-            public void onSystemUiVisibilityChange(int v) { appFullscreen = (v & View.SYSTEM_UI_FLAG_FULLSCREEN) != 0; topBarUpdate(); } });
+            public void onSystemUiVisibilityChange(int v) { appFullscreen = (v & View.SYSTEM_UI_FLAG_FULLSCREEN) != 0; topBarUpdate(); place(); } });
         topBar.setVisibility(View.GONE);
         try { wm.addView(topBar, lp); } catch (Throwable e) {}
         systemIcons(false);
@@ -391,6 +391,7 @@ public class OverlayService extends Service {
         if (edge != null) { int ev = show && "ghost".equals(mode) ? View.VISIBLE : View.GONE; if (edge.getVisibility() != ev) edge.setVisibility(ev); }
     }
 
+    String placedTop = "";
     void update() {
         String m = wantMode();
         // automatisches Einklappen nur waehrend des Laufs
@@ -401,6 +402,8 @@ public class OverlayService extends Service {
         boolean fs = s != null && s.optJSONObject("fan") != null;
         if ("exp".equals(m) && "exp".equals(mode) && fs != fanShown && pop == null && !graphOn && !"LAEUFT".equals(st())) { build(); place(); }   // im Lauf nie umbauen: STOP bleibt am Platz
         if (!m.equals(mode)) { if (!bannerOn) noteView.setVisibility(View.GONE); if (cdTask != null) cancelCountdownSilent(); mode = m; pop = null; modeAt = System.currentTimeMillis(); build(); place(); }
+        String tp = s == null ? "" : s.optString("top", "");
+        if (!tp.equals(placedTop)) { placedTop = tp; place(); }   // andere App vorne: Hoehe ueber deren unterer Leiste neu setzen
         checkPkg();
         apply();
         fill();
@@ -420,7 +423,7 @@ public class OverlayService extends Service {
         switch (mode) {
             case "exp": {
                 // Steuerleiste: Menue | Phase/Zeit | Steigung | STOP | Tempo | Puls | Ventilator (falls gespeichert) | Verlauf
-                add(pb("menu", WHITE, new Runnable() { public void run() { openUi("/"); } }), 0);
+                add(pb("menu", WHITE, new Runnable() { public void run() { openUi(home()); } }), 0);
                 cTime = cell("clock", 0xFFCFD2DC, "ZEIT", 0xFFA4A9BB); firstLab = cTime[3]; fixW(cTime, 164); add(cTime[0], 4);
                 cIncl = adj("STEIGUNG", INC, "incline"); add(cIncl[0], 6);
                 add(stopBtn(), 10);
@@ -439,7 +442,7 @@ public class OverlayService extends Service {
                 // Schmale Leiste am linken Rand: zurueck zu Tread Control, Musik Wiedergabe/Pause, STOP (wirkt wie in der Pille)
                 pill.setOrientation(LinearLayout.VERTICAL); pill.setPadding(dp(6), dp(8), dp(6), dp(8));
                 pill.setBackground(round(0x66181A21, dp(34), 0x26FFFFFF));   // halb durchsichtig: das Video scheint durch, STOP bleibt kraeftig rot
-                pill.addView(pb("back", WHITE, new Runnable() { public void run() { openUi("/"); } }));
+                pill.addView(pb("back", WHITE, new Runnable() { public void run() { openUi(home()); } }));
                 View mu = pb("music", WHITE, new Runnable() { public void run() { new Thread(new Runnable() { public void run() { try { Api.media(OverlayService.this, new JSONObject().put("a", "toggle")); } catch (Throwable e) {} } }).start(); } });
                 pill.addView(mu, lpWrap(0, dp(8), 0, 0));
                 if ("LAEUFT".equals(st()) || (s != null && s.optInt("cd") > 0)) pill.addView(sideStop(), lpWrap(0, dp(8), 0, 0));
@@ -477,7 +480,7 @@ public class OverlayService extends Service {
                 break; }
             case "pause": {
                 // Mitte (STOP-Stelle) ist ein inaktives Statusfeld: ein Doppeltipp auf STOP loest nie einen Befehl aus.
-                add(pb("menu", WHITE, new Runnable() { public void run() { openUi("/"); } }), 0);
+                add(pb("menu", WHITE, new Runnable() { public void run() { openUi(home()); } }), 0);
                 cTime = cell("clock", 0xFFCFD2DC, "PAUSE · GESAMT", HR); fixW(cTime, 164); add(cTime[0], 4);
                 final View w = bigBtn("WEITER", "play", GO, 0xFF03210F, null);
                 w.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { if (System.currentTimeMillis() - modeAt < 1000) return; touch(); countdown((LinearLayout) w, "resume"); } });
@@ -560,15 +563,20 @@ public class OverlayService extends Service {
 
     /** Abstand zum unteren Rand: Griff knapp, Pille 14 dp; ueber der Hersteller-App 30 dp, damit deren Knopf «Verwalten» nicht ueber STOP hervorschaut. */
     int baseY() {
-        if ("mini".equals(mode)) return dp(6);
         String tp = s == null ? "" : s.optString("top", "");
-        return tp.startsWith("com.jht") ? dp(30) : dp(14);
+        // Apps mit Leiste am unteren Rand (YouTube, YouTube Music): Pille darueber, sonst deckt sie deren Reiter zu; im Vollbild unten
+        int nav = appFullscreen ? 0 : dp(AppHygiene.bottomBarDp(tp));
+        if ("mini".equals(mode)) return dp(6) + nav;
+        return (tp.startsWith("com.jht") ? dp(30) : dp(14)) + nav;
     }
+    /** Ziel von Menue und Zurueck: im Lauf und in der Pause das laufende Training, sonst die Startseite. */
+    String home() { String t = st(); return "LAEUFT".equals(t) || "PAUSE".equals(t) || "FEHLER".equals(t) ? "/training" : "/"; }
     /** Mini-Knopf am linken Rand, sonst mittig. */
     void place() {
         try {
             boolean mini = "mini".equals(mode), side = "side".equals(mode), ghost = "ghost".equals(mode);
             int g = side ? Gravity.LEFT | Gravity.CENTER_VERTICAL : Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, y = side || ghost ? 0 : baseY(), x = side ? dp(10) : 0;
+            root.setGravity(side ? Gravity.LEFT : Gravity.CENTER_HORIZONTAL);   // Seitenleiste bleibt am Rand, auch unter dem Countdown-Hinweis
             if (lp.gravity != g || lp.y != y || lp.x != x) { lp.gravity = g; lp.x = x; lp.y = y; wm.updateViewLayout(root, lp); }
             root.setAlpha(mini ? 0.92f : 1f);
             orderChildren();

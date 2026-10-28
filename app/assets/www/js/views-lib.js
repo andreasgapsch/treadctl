@@ -9,7 +9,7 @@
   TX.APPS = [
     { pkg: 'app.revanced.android.youtube', alt: 'org.smarttube.stable', name: 'YouTube', sub: 'Videos mit deinem Google-Konto', bg: 'linear-gradient(135deg,#ff5f6d,#b0186e)', ic: function () { return I('play', 1); },
       prev: 'img/apps/youtube.jpg', pos: 'center',
-      pts: ['Echte YouTube-App mit Touch', 'Vollbild ohne Herstellerleiste', 'Pille und Live-Verlauf darüber'] },
+      pts: ['Echte YouTube-App mit Touch', 'Vollbild ohne Herstellerleiste', 'Pille über den Reitern der App'] },
     { pkg: 'app.revanced.android.apps.youtube.music', name: 'YouTube Music', sub: 'Musik und Playlists mit deinem Google-Konto', bg: 'linear-gradient(135deg,#ff5f6d,#b0186e)', ic: function () { return I('music'); },
       prev: 'img/apps/ytmusic.jpg', pos: 'center',
       pts: ['Musik, Playlists und Mixe', 'läuft im Hintergrund weiter', 'Mini-Player im Kopf'] },
@@ -17,9 +17,9 @@
       prev: 'img/apps/jellyfin.jpg', pos: 'center',
       pts: ['Filme und Serien vom eigenen Server', 'Live-TV mit Programmführer', 'Pille und Live-Verlauf darüber'] },
     { pkg: 'com.kinomap.training', name: 'Kinomap', sub: 'Videostrecken aus aller Welt', bg: '#ff6a00', ic: function () { return mono('K'); }, prev: 'img/apps/kinomap.jpg', pos: 'center',
-      pts: ['Videostrecken weltweit', 'Tempo und Steigung über die Pille', 'Pille und Live-Verlauf darüber'] },
+      pts: ['Videostrecken weltweit', 'Laufband per Bluetooth verbunden', 'Seitenleiste vom linken Rand'] },
     { pkg: 'com.zwift.zwiftgame', name: 'Zwift', sub: 'Laufen in virtuellen Welten', bg: '#fc6719', ic: function () { return mono('Z'); }, prev: 'img/apps/zwift.jpg', pos: 'center',
-      pts: ['Virtuelle Laufwelten', 'Tempo und Steigung über die Pille', 'Pille und Live-Verlauf darüber'] },
+      pts: ['Virtuelle Laufwelten', 'Laufband per Bluetooth verbunden', 'Seitenleiste vom linken Rand'] },
     { pkg: 'com.audiobookshelf.app', name: 'Hörbücher', sub: 'Audiobookshelf vom Heimserver', bg: '#1f6b5a', ic: function () { return I('music'); }, prev: 'img/apps/hoerbuecher.jpg', pos: 'center',
       pts: ['Bibliothek vom eigenen Server', 'läuft im Hintergrund weiter', 'Steuerung bleibt im Vollbild'] }
   ];
@@ -75,8 +75,8 @@
     var runs = TX.runs(), last = runs[0], wk = TX.weekStats(Date.now()), apps = TX.appList().filter(function (x) { return !x.a.optional && x.ok; });
     root.innerHTML = TX.headHtml('Start') + '<main class="body">' +
       '<section class="card hero"><div class="ph"></div><div class="shade"></div>' +
-      '<div class="lab" style="color:var(--inc)">' + greet + ', ' + esc(pr.name.split(' ')[0]) + '</div><h1>Bereit für deinen Lauf?</h1>' +
-      '<p>' + (np ? (today ? 'Heute im Plan: ' : 'Vorschlag: ') + '<b style="color:#fff">' + esc(TX.nm(np.name)) + '</b> · ' + Math.round(ps.dur / 60) + ' min · ca. ' + TX.km(ps.dist) + ' km' : 'Noch keine Vorlage angelegt') + '</p>' +
+      '<div class="lab" style="color:var(--inc)">' + greet + ', ' + esc(pr.name.split(' ')[0]) + '</div><h1 data-k="h1">Bereit für deinen Lauf?</h1>' +
+      '<p data-k="sub">' + (np ? (today ? 'Heute im Plan: ' : 'Vorschlag: ') + '<b style="color:#fff">' + esc(TX.nm(np.name)) + '</b> · ' + Math.round(ps.dur / 60) + ' min · ca. ' + TX.km(ps.dist) + ' km' : 'Noch keine Vorlage angelegt') + '</p>' +
       '<div class="row" data-k="acts"></div>' +
       '<div class="last">' + (last ? '<div><div class="lab">Letzter Lauf</div><div class="num">' + TX.km(last.dist) + ' <small>km</small></div></div>' +
         '<div><div class="lab">Dauer</div><div class="num">' + TX.time(last.elapsed) + '</div></div>' +
@@ -122,8 +122,19 @@
       update: function (st) {
         TX.updHead(root, st);
         var m = TX.busy(st) ? 'busy' : 'ready';
+        var h = $('[data-k="h1"]', root), sb = $('[data-k="sub"]', root);
+        if (!h.hasAttribute('data-r')) { h.setAttribute('data-r', h.innerHTML); sb.setAttribute('data-r', sb.innerHTML); }   // Text fuer «bereit»
+        if (m === 'busy' && st) {
+          var t1 = st.st === 'PAUSE' ? 'Lauf pausiert' : st.st === 'FEHLER' ? 'Lauf unterbrochen' : 'Lauf läuft',
+            t2 = TX.time(st.elapsed || 0) + ' · ' + TX.km(st.dist || 0) + ' km' + (st.prog && st.prog.name ? ' · ' + esc(TX.nm(st.prog.name)) : '');
+          if (h.textContent !== t1) h.textContent = t1;
+          if (sb.innerHTML !== t2) sb.innerHTML = t2;
+        }
         if (m !== mode) {
           mode = m;
+          // im Lauf nicht «Bereit für deinen Lauf?»: Titel und Zeile zeigen den laufenden Lauf
+          var h1 = $('[data-k="h1"]', root), sub = $('[data-k="sub"]', root);
+          if (m !== 'busy') { h1.innerHTML = h1.getAttribute('data-r'); sub.innerHTML = sub.getAttribute('data-r'); }
           $('[data-k="acts"]', root).innerHTML = m === 'busy' ? '<a class="btn go" href="#/training">' + I('run') + ' Zum laufenden Training</a>' :
             '<button class="btn go" data-v="plan"' + (np ? '' : ' disabled') + '>' + I('play', 1) + ' Plan starten</button>' +
             // ohne Verlauf gibt es nichts zu wiederholen: dann Schnellstart statt eines toten Knopfs
@@ -369,14 +380,14 @@
   };
 
   /* ================= Apps ================= */
-  var PREFS = [['pill', 'Steuer-Pille anzeigen', 'unten in allen Apps; hochwischen zeigt, runterwischen versteckt'], ['pillGraph', 'Live-Verlauf einblenden', 'Tempo, Steigung, Puls über der Pille'],
+  var PREFS = [['pill', 'Steuer-Pille anzeigen', 'unten in Apps, in Kinomap und Zwift seitlich; hochwischen zeigt'], ['pillGraph', 'Live-Verlauf einblenden', 'Tempo, Steigung, Puls über der Pille'],
     ['autoCollapse', 'Automatisch einklappen', 'nach 6 s ohne Berührung'], ['hideBar', 'Herstellerleiste ausblenden', 'eigene Statuszeile oben, Apps im Vollbild']];
   // Laufband als Bluetooth-Geraet (FTMS und Laufsensor): Einstellungen liegen im Dienst, nicht in den Oberflaechen-Einstellungen
   function ftmsRows(f) {
     var on = !!(f && f.on), ctl = on && !!f.ctl, n = f && f.clients ? f.clients.length : 0;
     var sub1 = !f ? 'Dienst nicht erreichbar' : !on ? 'FTMS und Laufsensor für Uhren und Apps auf anderen Geräten' :
       (n ? 'verbunden: ' + (n === 1 ? f.clients[0].name : n + ' Apps oder Uhren') : /^fehler/.test(f.state) ? 'Störung: ' + f.state.replace(/^fehler: /, '') : 'sichtbar als «' + f.name + '»') + (f.radio === 'esp32' && !n ? ' · Funkmodul ESP32' : '');
-    var sub2 = 'bis ' + (f ? f.maxS : 14) + ' km/h und ' + (f ? f.maxI : 10) + ' %; Start nur hier, STOP immer';
+    var sub2 = 'bis ' + (f ? f.maxS : 14) + ' km/h und ' + (f ? f.maxI : 10) + ' %; Start in Kinomap und Zwift mit Countdown, STOP immer';
     return '<button class="trow" role="switch" data-f="on" aria-checked="' + on + '"' + (f ? '' : ' disabled') + '><div>Daten an Apps und Uhren<small data-k="fsub">' + esc(sub1) + '</small></div><span class="tg' + (on ? '' : ' off') + '"></span></button>' +
       (on ? '<button class="trow" role="switch" data-f="ctl" aria-checked="' + ctl + '"><div>Apps dürfen Tempo und Steigung steuern<small>' + esc(sub2) + '</small></div><span class="tg' + (ctl ? '' : ' off') + '"></span></button>' :
         '<button class="trow lk" role="switch" data-f="ctl" aria-checked="false" aria-disabled="true" disabled><div>Apps dürfen Tempo und Steigung steuern<small>zuerst «Daten an Apps und Uhren» einschalten</small></div><span class="tlk">' + I('lock') + '<span class="tg off"></span></span></button>') +
