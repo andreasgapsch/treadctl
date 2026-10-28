@@ -708,8 +708,8 @@ if (!ONLY.length) {
     const flog = await p.evaluate(() => JSON.stringify(window.__txFtmsLog || []));
     const ok = yh === 'YouTubeVideos mit deinem Google-Konto' && all.subs[0] === 'Videos mit deinem Google-Konto' && all.st === 0 && !/statt|ERSATZ|BEGLEITER|BEREIT/.test(all.txt) && all.bad === 0 &&
       all.subs.join('|') === 'Videos mit deinem Google-Konto|Musik und Playlists mit deinem Google-Konto|Filme, Serien und Live-TV vom Heimserver|Videostrecken aus aller Welt|Laufen in virtuellen Welten|Audiobookshelf vom Heimserver' &&
-      km.pts.join('|') === 'y:Videostrecken weltweit|y:Laufband per Bluetooth verbunden|y:Seitenleiste vom linken Rand' &&
-      zw1.pts.join('|') === 'y:Virtuelle Laufwelten|y:Laufband per Bluetooth verbunden|y:Seitenleiste vom linken Rand' &&
+      km.pts.join('|') === 'y:Videostrecken weltweit|y:Laufband per Bluetooth verbunden|y:Menü und Musik von unten' &&
+      zw1.pts.join('|') === 'y:Virtuelle Laufwelten|y:Laufband per Bluetooth verbunden|y:Menü und Musik von unten' &&
       inc.dis && inc.sm === 'zuerst «Daten an Apps und Uhren» einschalten' && !inc2.dis && inc2.sm === 'bis 14 km/h und 10 %; Start in Kinomap und Zwift mit Countdown, STOP immer' &&
       on === 'true sichtbar als «Tread Control»' && flog === '[{"on":true},{"ctl":true}]';
     return { ok, d: `Start «${yh}»; Untertitel [${all.subs.join(' | ')}]; Abzeichen ${all.st}, Warnpunkte ${all.bad}; Kinomap [${km.pts.join('; ')}]; Zwift [${zw1.pts}]; Steuerung aus «${inc.sm}», nach «Daten an Apps» «${inc2.sm}»; ${on}; Befehle ${flog}` };

@@ -37,6 +37,9 @@ public class Icon extends View {
             case "music": cv.drawCircle(7, 18, 3, p); cv.drawCircle(18, 16, 3, p); path.moveTo(10, 18); path.lineTo(10, 5); path.lineTo(21, 3); path.lineTo(21, 16); cv.drawPath(path, p); break;
             case "stop": p.setStyle(Paint.Style.FILL); cv.drawRoundRect(new RectF(6, 6, 18, 18), 2, 2, p); break;
             case "play": p.setStyle(Paint.Style.FILL); path.moveTo(7, 4); path.lineTo(20, 12); path.lineTo(7, 20); path.close(); cv.drawPath(path, p); break;
+            case "pause": p.setStyle(Paint.Style.FILL); cv.drawRoundRect(new RectF(6, 5, 10, 19), 1, 1, p); cv.drawRoundRect(new RectF(14, 5, 18, 19), 1, 1, p); break;
+            case "next": p.setStyle(Paint.Style.FILL); path.moveTo(5, 5); path.lineTo(16, 12); path.lineTo(5, 19); path.close(); cv.drawPath(path, p); cv.drawRect(new RectF(17, 5, 20, 19), p); break;
+            case "prev": p.setStyle(Paint.Style.FILL); path.moveTo(19, 5); path.lineTo(8, 12); path.lineTo(19, 19); path.close(); cv.drawPath(path, p); cv.drawRect(new RectF(4, 5, 7, 19), p); break;
             case "inc": path.moveTo(3, 20); path.lineTo(21, 20); path.lineTo(21, 7); path.close(); cv.drawPath(path, p); break;
             case "clock": cv.drawCircle(12, 12, 9, p); path.moveTo(12, 7); path.lineTo(12, 12); path.lineTo(15, 14); cv.drawPath(path, p); break;
             case "run": cv.drawCircle(14, 4, 2, p); path.moveTo(7, 21); path.lineTo(10, 15); path.lineTo(13, 17); path.lineTo(13, 22);

@@ -57,7 +57,7 @@ public class OverlayService extends Service {
     long modeAt = 0; TextView pauseInfo, weiterSub; View weiterBtn;
     String lastNote = ""; JSONArray hist; boolean readyOpen = false;
     // Anzeigen
-    TextView[] cTime, cIncl, cSpd, cHr, cDist; Graph graph; TextView gPace, gDist, gZone, gKcal, firstLab;
+    TextView[] cTime, cIncl, cSpd, cHr, cDist, cPace; Graph graph; TextView gPace, gDist, gZone, gKcal, firstLab;
     Icon firstIcon;
     DataBus fallbackBus;
 
@@ -81,7 +81,6 @@ public class OverlayService extends Service {
         wm = (WindowManager) getSystemService(WINDOW_SERVICE);
         buildRoot();
         buildWatcher();
-        buildEdge();
         buildTopBar();
         poll();
         ui.postDelayed(shift, 120000);
@@ -128,7 +127,7 @@ public class OverlayService extends Service {
                 case MotionEvent.ACTION_DOWN: y0 = e.getRawY(); x0 = e.getRawX(); drag = false; break;
                 case MotionEvent.ACTION_MOVE: { float dy = e.getRawY() - y0, dx = e.getRawX() - x0;
                     if (Math.abs(dy) > dp(24) && Math.abs(dy) > Math.abs(dx) * 1.5f) { drag = true; return true; }
-                    if ("side".equals(mode) && dx < -dp(24) && Math.abs(dx) > Math.abs(dy) * 1.5f) { drag = true; return true; } break; }
+                    break; }
             }
             return false;
         }
@@ -136,19 +135,19 @@ public class OverlayService extends Service {
             if (e.getActionMasked() == MotionEvent.ACTION_DOWN) { y0 = e.getRawY(); x0 = e.getRawX(); return true; }
             if (e.getActionMasked() == MotionEvent.ACTION_UP) {
                 float dy = e.getRawY() - y0, dx = e.getRawX() - x0;
-                if ("side".equals(mode) && dx < -dp(24) && Math.abs(dx) > Math.abs(dy)) swipe(false);   // Seitenleiste nach links wegwischen
-                else if (Math.abs(dy) > dp(24)) swipe(dy < 0); else if ("mini".equals(mode) || "ghost".equals(mode)) swipe(true);
+                if (Math.abs(dy) > dp(24)) swipe(dy < 0); else if ("mini".equals(mode) || "ghost".equals(mode)) swipe(true);
                 drag = false; return true;
             }
             return true;
         }
     }
-    boolean hiddenRun = false, sideOpen = false; TextView miniLabel;
+    boolean hiddenRun = false, dockOpen = false; TextView miniLabel;
     /** Hoch: Griff → Pille → ausgeklappt. Runter: ausgeklappt → Pille → Griff. Pause, Fehler und Schluessel bleiben sichtbar. */
     void swipe(boolean up) {
         touch();
-        if ("ghost".equals(mode) && up) { sideOpen = true; update(); return; }
-        if ("side".equals(mode) && !up) { sideOpen = false; update(); return; }
+        // unsichtbar: hochwischen zeigt in Kinomap und Zwift Menue und Musik, sonst im Stand die Pille mit START
+        if ("ghost".equals(mode) && up) { if (ownDisplay()) dockOpen = true; else if ("LAEUFT".equals(st())) hiddenRun = false; else readyOpen = true; update(); return; }
+        if ("dock".equals(mode) && !up) { dockOpen = false; closeAbove(); update(); return; }
         if (up) {
             if ("mini".equals(mode)) { if ("LAEUFT".equals(st())) hiddenRun = false; else readyOpen = true; }
             else if ("col".equals(mode)) expanded = true;
@@ -181,21 +180,6 @@ public class OverlayService extends Service {
         try { wm.addView(root, lp); } catch (Throwable e) {}
     }
 
-    /** Unsichtbarer Streifen am linken Rand (nur in Apps mit eigener Anzeige): nach rechts wischen oder tippen zeigt die Seitenleiste. */
-    View edge; WindowManager.LayoutParams elp;
-    void buildEdge() {
-        edge = new View(this);
-        edge.setOnTouchListener(new View.OnTouchListener() { float x0; public boolean onTouch(View v, MotionEvent e) {
-            if (e.getActionMasked() == MotionEvent.ACTION_DOWN) x0 = e.getRawX();
-            else if (e.getActionMasked() == MotionEvent.ACTION_UP) { float dx = e.getRawX() - x0; if (dx > dp(20) || Math.abs(dx) < dp(8)) swipe(true); }
-            return true; } });
-        elp = new WindowManager.LayoutParams(dp(9), dp(320), WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL, PixelFormat.TRANSLUCENT);
-        elp.gravity = Gravity.LEFT | Gravity.CENTER_VERTICAL;
-        edge.setVisibility(View.GONE);
-        try { wm.addView(edge, elp); } catch (Throwable e) {}
-    }
-
     /** 1x1-Fenster, das jede Beruehrung auf dem Bildschirm mitbekommt (fuer den Bildschirmschoner). */
     void buildWatcher() {
         watcher = new View(this);
@@ -217,6 +201,7 @@ public class OverlayService extends Service {
                 if (st != null) { lastOk = Core.clock(); if (st.has("hist")) hist = st.optJSONArray("hist"); keepProf(st); }
                 else if (st0 == null) reviveCore();
                 ui.post(new Runnable() { public void run() { Api.uiBeat = System.currentTimeMillis(); if (st != null) s = st; update(); } });
+                if ("player".equals(pop) && k % 3 == 0) { media = Api.mediaState(OverlayService.this); ui.post(new Runnable() { public void run() { fillPlayer(); } }); }   // Player offen: Titel nachfuehren
                 k++;
                 // Takt: 400 ms im Gebrauch (Lauf, Pause, Fehler, Countdown, Band bewegt sich); in BEREIT 1 s, versteckt hinter der eigenen Oberflaeche 2 s
                 JSONObject cs = st != null ? st : s;
@@ -254,27 +239,28 @@ public class OverlayService extends Service {
 
     String errKey() { return s == null ? "" : (s.optDouble("speed") < 0.3) + "/" + s.optInt("pulled"); }
     String lastErrKey = "";
-    /** Apps mit eigener Anzeige von Tempo und Steigung: statt der Pille nur die schmale Seitenleiste (Zurueck, Musik, STOP). */
-    boolean ownDisplay() { return s != null && AppHygiene.ownDisplay(s.optString("top", "")) && pref("sideInApps", true); }
+    /** Laufapps mit eigener Anzeige (Kinomap, Zwift): nichts zu sehen, von unten hochwischen zeigt Menue und Musik. */
+    boolean ownDisplay() { return s != null && AppHygiene.ownDisplay(s.optString("top", "")); }
 
     String wantMode() {
         if (Core.clock() - lastOk > 3000) return "nodaemon";
         String st = st();
         if ("FEHLER".equals(st)) return "err";
-        if ("PAUSE".equals(st)) return "pause";
-        // Apps mit eigener Anzeige: unsichtbar; von unten hochwischen zeigt die Seitenleiste, nach 8 s ohne Beruehrung wieder weg
-        if (ownDisplay() && ("LAEUFT".equals(st) || "BEREIT".equals(st)) && (s == null || s.optInt("pulled") != 1)) {
-            // Countdown (Start aus der App oder ueber die Taste): Leiste mit STOP zeigen, bis 8 s nach dem Anlaufen
-            if (s != null && s.optInt("cd") > 0) { sideOpen = true; lastInteract = System.currentTimeMillis(); }
-            if (sideOpen && System.currentTimeMillis() - lastInteract > 8000) sideOpen = false;
-            return sideOpen ? "side" : "ghost";
+        // Laufapps zeigen Tempo, Steigung und Lauf selbst: im Stand, im Lauf und in der Pause nichts; hochwischen zeigt Menue und Musik,
+        // nach 8 s ohne Beruehrung wieder weg (mit offenem Player nach 15 s). Gezogener Schluessel bleibt sichtbar.
+        if (ownDisplay() && (s == null || s.optInt("pulled") != 1)) {
+            if (dockOpen && System.currentTimeMillis() - lastInteract > (pop != null ? 15000 : 8000)) { dockOpen = false; closeAbove(); }
+            return dockOpen ? "dock" : "ghost";
         }
+        dockOpen = false;
+        if ("PAUSE".equals(st)) return "pause";
         if (!"LAEUFT".equals(st)) hiddenRun = false;
         if ("LAEUFT".equals(st)) return hiddenRun ? "mini" : expanded ? "exp" : "col";
         if (s != null && s.optInt("pulled") == 1) return "key";
+        // im Stand nichts zu sehen: von unten hochwischen zeigt die Pille mit START, nach 8 s ohne Beruehrung wieder weg
         if (readyOpen && System.currentTimeMillis() - lastInteract < 8000) return "ready";
         readyOpen = false;
-        return "mini";
+        return "ghost";
     }
 
     // ---------------- Eigene Statuszeile ueber Fremd-Apps ----------------
@@ -387,23 +373,19 @@ public class OverlayService extends Service {
         // Dienst weg: Pille immer zeigen, auch ueber der eigenen Oberflaeche (ihr STOP geht direkt auf den Herstellerbus)
         boolean show = "nodaemon".equals(mode) || (!hiddenByUi && (running || pref("showPill", true) || "err".equals(mode)));
         root.setVisibility(show ? View.VISIBLE : View.GONE);
-        // linker Wischstreifen nur, solange in einer App mit eigener Anzeige nichts zu sehen ist
-        if (edge != null) { int ev = show && "ghost".equals(mode) ? View.VISIBLE : View.GONE; if (edge.getVisibility() != ev) edge.setVisibility(ev); }
     }
 
-    String placedTop = "";
     void update() {
+        if ("player".equals(pop) && System.currentTimeMillis() - lastInteract > 15000) closeAbove();   // Player schliesst nach 15 s ohne Beruehrung
         String m = wantMode();
         // automatisches Einklappen nur waehrend des Laufs
         if ("exp".equals(m) && pref("autoCollapse", true) && pop == null && !graphOn && !bannerOn && System.currentTimeMillis() - lastInteract > 6000) { expanded = false; m = "col"; }
-        if ("key".equals(mode) && "mini".equals(m)) { readyOpen = true; lastInteract = System.currentTimeMillis(); m = "ready"; }
+        if ("key".equals(mode) && "ghost".equals(m) && !ownDisplay()) { readyOpen = true; lastInteract = System.currentTimeMillis(); m = "ready"; }
         if ("err".equals(m) && "err".equals(mode) && !errKey().equals(lastErrKey)) mode = "";
         if ("err".equals(m)) lastErrKey = errKey();
         boolean fs = s != null && s.optJSONObject("fan") != null;
         if ("exp".equals(m) && "exp".equals(mode) && fs != fanShown && pop == null && !graphOn && !"LAEUFT".equals(st())) { build(); place(); }   // im Lauf nie umbauen: STOP bleibt am Platz
         if (!m.equals(mode)) { if (!bannerOn) noteView.setVisibility(View.GONE); if (cdTask != null) cancelCountdownSilent(); mode = m; pop = null; modeAt = System.currentTimeMillis(); build(); place(); }
-        String tp = s == null ? "" : s.optString("top", "");
-        if (!tp.equals(placedTop)) { placedTop = tp; place(); }   // andere App vorne: Hoehe ueber deren unterer Leiste neu setzen
         checkPkg();
         apply();
         fill();
@@ -415,7 +397,7 @@ public class OverlayService extends Service {
     // ---------------- Aufbau je Modus ----------------
     void build() {
         statusField = null; weiterBtn = null; pill.removeAllViews(); above.removeAllViews(); above.setVisibility(View.GONE); graphOn = false;
-        cTime = cIncl = cSpd = cHr = cDist = null; firstLab = null; firstIcon = null;
+        cTime = cIncl = cSpd = cHr = cDist = cPace = null; firstLab = null; firstIcon = null;
         pill.setBackground(round(GLASS, dp(44), LINE));
         pill.setPadding(dp(8), dp(8), dp(8), dp(8)); pill.setElevation(0); pill.setOnClickListener(null); pill.setMinimumWidth(0);   // kein Schatten: kostet bei der grossen Glasflaeche jedes Bild
         pill.setOrientation(LinearLayout.HORIZONTAL); pill.setGravity(Gravity.CENTER_VERTICAL);
@@ -424,11 +406,15 @@ public class OverlayService extends Service {
             case "exp": {
                 // Steuerleiste: Menue | Phase/Zeit | Steigung | STOP | Tempo | Puls | Ventilator (falls gespeichert) | Verlauf
                 add(pb("menu", WHITE, new Runnable() { public void run() { openUi(home()); } }), 0);
-                cTime = cell("clock", 0xFFCFD2DC, "ZEIT", 0xFFA4A9BB); firstLab = cTime[3]; fixW(cTime, 164); add(cTime[0], 4);
-                cIncl = adj("STEIGUNG", INC, "incline"); add(cIncl[0], 6);
-                add(stopBtn(), 10);
-                cSpd = adj("TEMPO", SPD, "speed"); add(cSpd[0], 10);
-                cHr = cell("heart", HR, "PULS", HR); fixW(cHr, 164); add(cHr[0], 4);
+                // Zeit ohne Uhrsymbol und schmalere Felder: mit Musik, Ventilator und Verlauf passt die Leiste in 1280 dp
+                cTime = cell("none", 0xFFCFD2DC, "ZEIT", 0xFFA4A9BB); firstLab = cTime[3]; fixW(cTime, 128); add(cTime[0], 4);
+                cIncl = adj("STEIGUNG", INC, "incline"); add(cIncl[0], 4);
+                add(stopBtn(), 8);
+                cSpd = adj("TEMPO", SPD, "speed"); add(cSpd[0], 8);
+                cHr = cell("heart", HR, "PULS", HR); fixW(cHr, 150); add(cHr[0], 4);
+                final View[] mb = new View[1];
+                mb[0] = pb("music", WHITE, new Runnable() { public void run() { togglePlayer(mb[0]); } });
+                add(mb[0], 4);
                 fanShown = s != null && s.optJSONObject("fan") != null; fanLab = null;
                 if (fanShown) add(fanBtn(), 4);
                 add(pb("graph", WHITE, new Runnable() { public void run() { toggleGraph(); } }), 4);
@@ -438,23 +424,21 @@ public class OverlayService extends Service {
                 pill.setBackground(null); pill.setPadding(0, 0, 0, 0);
                 pill.addView(new View(this), new LinearLayout.LayoutParams(dp(360), dp(9)));   // nur der aeusserste Rand, damit Menueleisten der App frei bleiben
                 break; }
-            case "side": {
-                // Schmale Leiste am linken Rand: zurueck zu Tread Control, Musik Wiedergabe/Pause, STOP (wirkt wie in der Pille)
-                pill.setOrientation(LinearLayout.VERTICAL); pill.setPadding(dp(6), dp(8), dp(6), dp(8));
-                pill.setBackground(round(0x66181A21, dp(34), 0x26FFFFFF));   // halb durchsichtig: das Video scheint durch, STOP bleibt kraeftig rot
-                pill.addView(pb("back", WHITE, new Runnable() { public void run() { openUi(home()); } }));
-                View mu = pb("music", WHITE, new Runnable() { public void run() { new Thread(new Runnable() { public void run() { try { Api.media(OverlayService.this, new JSONObject().put("a", "toggle")); } catch (Throwable e) {} } }).start(); } });
-                pill.addView(mu, lpWrap(0, dp(8), 0, 0));
-                if ("LAEUFT".equals(st()) || (s != null && s.optInt("cd") > 0)) pill.addView(sideStop(), lpWrap(0, dp(8), 0, 0));
+            case "dock": {
+                // Laufapps: kleine Leiste unten mit Menue (zu Tread Control) und Musik (Player darueber), halb durchsichtig
+                pill.setBackground(round(0x99181A21, dp(36), 0x26FFFFFF)); pill.setPadding(dp(8), dp(8), dp(8), dp(8));
+                add(pb("menu", WHITE, new Runnable() { public void run() { closeAbove(); dockOpen = false; openUi(home()); } }), 0);
+                final View[] mb = new View[1];
+                mb[0] = pb("music", WHITE, new Runnable() { public void run() { togglePlayer(mb[0]); } });
+                add(mb[0], 10);
                 break; }
             case "col": {
-                LinearLayout.LayoutParams w = new LinearLayout.LayoutParams(dp(180), ViewGroup.LayoutParams.WRAP_CONTENT);
-                cTime = cell("clock", 0xFFCFD2DC, "ZEIT", 0xFFA4A9BB); firstLab = cTime[3]; pill.addView(rv(cTime[0]), new LinearLayout.LayoutParams(w));
-                cIncl = cell("none", INC, "STEIGUNG", INC); pill.addView(rv(cIncl[0]), new LinearLayout.LayoutParams(w));
-                FrameLayout slot = new FrameLayout(this); slot.addView(expBtn(), new FrameLayout.LayoutParams(dp(56), dp(56), Gravity.CENTER));
-                pill.addView(slot, new LinearLayout.LayoutParams(dp(120), dp(64)));
-                cSpd = cell("none", SPD, "TEMPO", SPD); pill.addView(rv(cSpd[0]), new LinearLayout.LayoutParams(w));
+                // Minimalpille im Lauf: Pace, Puls, Steigung; antippen klappt die Steuerung auf
+                LinearLayout.LayoutParams w = new LinearLayout.LayoutParams(dp(170), ViewGroup.LayoutParams.WRAP_CONTENT);
+                cPace = cell("none", SPD, "PACE", SPD); pill.addView(rv(cPace[0]), new LinearLayout.LayoutParams(w));
                 cHr = cell("heart", HR, "PULS", HR); pill.addView(rv(cHr[0]), new LinearLayout.LayoutParams(w));
+                cIncl = cell("none", INC, "STEIGUNG", INC); pill.addView(rv(cIncl[0]), new LinearLayout.LayoutParams(w));
+                pill.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { expand(); } });
                 for (int i = 0; i < pill.getChildCount(); i++) { pill.getChildAt(i).setOnClickListener(new View.OnClickListener() { public void onClick(View v) { expand(); } }); }
                 break; }
             case "mini": {
@@ -465,7 +449,7 @@ public class OverlayService extends Service {
                 pill.addView(bar, new LinearLayout.LayoutParams(dp(56), dp(5)));
                 TextView t = new TextView(this); miniLabel = t; t.setTextColor(0xFFCFD2DC); t.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13); t.setTypeface(Typeface.DEFAULT_BOLD);
                 t.setLetterSpacing(0.06f);
-                t.setText("LAEUFT".equals(st()) && s != null ? f1(s.optDouble("tSpeed")) + " km/h  ·  " + f1(s.optDouble("tIncl")) + " %" : "STEUERUNG");
+                t.setText("LAEUFT".equals(st()) && s != null ? paceTxt() + " /km  ·  " + f1(s.optDouble("tIncl")) + " %" : "STEUERUNG");
                 pill.addView(t, lpWrap(0, dp(6), 0, 0));
                 pill.setMinimumWidth(dp(220));
                 break; }
@@ -574,20 +558,23 @@ public class OverlayService extends Service {
     /** Mini-Knopf am linken Rand, sonst mittig. */
     void place() {
         try {
-            boolean mini = "mini".equals(mode), side = "side".equals(mode), ghost = "ghost".equals(mode);
-            int g = side ? Gravity.LEFT | Gravity.CENTER_VERTICAL : Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, y = side || ghost ? 0 : baseY(), x = side ? dp(10) : 0;
-            root.setGravity(side ? Gravity.LEFT : Gravity.CENTER_HORIZONTAL);   // Seitenleiste bleibt am Rand, auch unter dem Countdown-Hinweis
+            boolean mini = "mini".equals(mode), ghost = "ghost".equals(mode);
+            int g = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, y = ghost ? 0 : baseY(), x = 0;
             if (lp.gravity != g || lp.y != y || lp.x != x) { lp.gravity = g; lp.x = x; lp.y = y; wm.updateViewLayout(root, lp); }
             root.setAlpha(mini ? 0.92f : 1f);
             orderChildren();
-            if (!mini) pill.setOnClickListener(null);
+            if (!mini && !"col".equals(mode)) pill.setOnClickListener(null);
+            // ueber fremden Apps leicht durchsichtig (wirkt weniger aufdringlich), ueber dem Herstellerbildschirm deckend (dessen Griff darf nicht durchscheinen)
+            String tp = s == null ? "" : s.optString("top", "");
+            boolean glass = "col".equals(mode) || "exp".equals(mode) || "ready".equals(mode) || "pause".equals(mode) || mini;
+            if (pill.getBackground() != null && glass) pill.getBackground().setAlpha(tp.startsWith("com.jht") || tp.startsWith("com.gapsch") || tp.length() == 0 ? 255 : 210);
         } catch (Throwable e) {}
     }
 
     // ---------------- Werte eintragen ----------------
     void fill() {
         if (s == null) return;
-        if ("mini".equals(mode) && miniLabel != null) setTxt(miniLabel, "LAEUFT".equals(st()) ? f1(s.optDouble("tSpeed")) + " km/h  ·  " + f1(s.optDouble("tIncl")) + " %" : "STEUERUNG");
+        if ("mini".equals(mode) && miniLabel != null) setTxt(miniLabel, "LAEUFT".equals(st()) ? paceTxt() + " /km  ·  " + f1(s.optDouble("tIncl")) + " %" : "STEUERUNG");
         JSONObject prog = s.optJSONObject("prog");
         if (cTime != null) {
             if (prog != null && "interval".equals(prog.optString("type")) && !"pause".equals(mode)) {
@@ -628,6 +615,7 @@ public class OverlayService extends Service {
         boolean run = "LAEUFT".equals(st()) && "exp".equals(mode);
         if (cIncl != null) { setTxt(cIncl[1], f1(s.optDouble("tIncl"))); setTxt(cIncl[2], "%"); istLine(cIncl, run, s.optDouble("incline"), s.optDouble("tIncl")); }
         if (cSpd != null) { setTxt(cSpd[1], f1(s.optDouble("tSpeed"))); setTxt(cSpd[2], "km/h"); istLine(cSpd, run, s.optDouble("speed"), s.optDouble("tSpeed")); }
+        if (cPace != null) { double sp = s.optDouble("speed"); setTxt(cPace[1], sp > 1 ? mmss((int) Math.round(3600 / sp)) : "--:--"); setTxt(cPace[2], "/km"); }
         if (cHr != null) { int h = s.optInt("hr"); setTxt(cHr[1], h > 0 && s.optBoolean("hrOk") ? String.valueOf(h) : "--"); setTxt(cHr[2], "bpm"); }
         if (cDist != null) { setTxt(cDist[1], String.format(Locale.US, "%.2f", s.optDouble("dist"))); setTxt(cDist[2], "km"); }
         if (graphOn && graph != null) {
@@ -817,19 +805,6 @@ public class OverlayService extends Service {
             else if (e.getActionMasked() == MotionEvent.ACTION_UP || e.getActionMasked() == MotionEvent.ACTION_CANCEL) press(v, false);
             return true; } });
         return b;
-    }
-
-    /** Kleiner runder STOP fuer die Seitenleiste: reagiert schon beim Druecken, wie der grosse. */
-    View sideStop() {
-        FrameLayout b = new FrameLayout(this); b.setBackground(round(HR, dp(30), 0));
-        b.addView(new Icon(this, "stop", 0xFF2B0509), new FrameLayout.LayoutParams(dp(26), dp(26), Gravity.CENTER));
-        b.setContentDescription("STOP");
-        b.setOnTouchListener(new View.OnTouchListener() { public boolean onTouch(View v, MotionEvent e) {
-            if (e.getActionMasked() == MotionEvent.ACTION_DOWN) { press(v, true); touch(); doStop(); }
-            else if (e.getActionMasked() == MotionEvent.ACTION_UP || e.getActionMasked() == MotionEvent.ACTION_CANCEL) press(v, false);
-            return true; } });
-        FrameLayout w = new FrameLayout(this); w.addView(b, new FrameLayout.LayoutParams(dp(56), dp(56)));
-        return w;
     }
 
     View bigBtn(String txt, String icon, int bg, int fg, final Runnable r) {
@@ -1074,7 +1049,65 @@ public class OverlayService extends Service {
     }
     final Runnable autoClosePop = new Runnable() { public void run() { if (pop != null) closeAbove(); } };
 
-    void closeAbove() { pop = null; graphOn = false; above.removeAllViews(); above.setVisibility(View.GONE); }
+    String paceTxt() { double sp = s == null ? 0 : s.optDouble("speed"); return sp > 1 ? mmss((int) Math.round(3600 / sp)) : "--:--"; }
+    void closeAbove() { pop = null; graphOn = false; above.removeAllViews(); above.setVisibility(View.GONE); aboveWidth(ViewGroup.LayoutParams.MATCH_PARENT); plTitle = plSub = null; plPlay = null; }
+    /** MATCH_PARENT zaehlt in der senkrechten Wurzel nicht zur Fensterbreite: fuer den Player ueber der kleinen Leiste feste Breite. */
+    void aboveWidth(int w) { try { LinearLayout.LayoutParams ap = (LinearLayout.LayoutParams) above.getLayoutParams(); if (ap.width != w) { ap.width = w; above.setLayoutParams(ap); } } catch (Throwable e) {} }
+
+    // ---------------- Player ueber der Pille (Musik oder Hoerbuch im Hintergrund) ----------------
+    TextView plTitle, plSub; Icon plPlay; volatile JSONObject media;
+    void togglePlayer(final View anchor) {
+        if ("player".equals(pop)) { closeAbove(); return; }
+        graphOn = false; pop = "player"; above.removeAllViews();
+        aboveWidth(Math.max(pill.getWidth(), dp(680)));   // ueber der kleinen Leiste (Menue, Musik) sonst auf deren Breite abgeschnitten
+        LinearLayout row = new LinearLayout(this); row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setPadding(dp(18), dp(8), dp(8), dp(8)); row.setBackground(round(GLASS, dp(18), LINE));
+        LinearLayout tx = new LinearLayout(this); tx.setOrientation(LinearLayout.VERTICAL);
+        plTitle = new TextView(this); plTitle.setTextColor(WHITE); plTitle.setTypeface(Typeface.DEFAULT_BOLD); plTitle.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 17);
+        plTitle.setSingleLine(true); plTitle.setEllipsize(android.text.TextUtils.TruncateAt.END); plTitle.setText("Musik");
+        plSub = new TextView(this); plSub.setTextColor(MUT); plSub.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+        plSub.setSingleLine(true); plSub.setEllipsize(android.text.TextUtils.TruncateAt.END); plSub.setText("");
+        tx.addView(plTitle); tx.addView(plSub);
+        row.addView(tx, new LinearLayout.LayoutParams(dp(300), ViewGroup.LayoutParams.WRAP_CONTENT));
+        row.addView(pb("prev", WHITE, new Runnable() { public void run() { mediaCmd("prev"); } }), lpWrap(dp(10), 0, 0, 0));
+        View pp = pb("play", WHITE, new Runnable() { public void run() { mediaCmd("toggle"); } });
+        plPlay = (Icon) ((ViewGroup) ((ViewGroup) pp).getChildAt(0)).getChildAt(0);
+        row.addView(pp, lpWrap(dp(8), 0, 0, 0));
+        row.addView(pb("next", WHITE, new Runnable() { public void run() { mediaCmd("next"); } }), lpWrap(dp(8), 0, 0, 0));
+        // Musik-App selbst oeffnen (YouTube Music oder Hoerbuecher), ohne Wiedergabe YouTube Music
+        row.addView(pb("apps", WHITE, new Runnable() { public void run() { openMusicApp(); } }), lpWrap(dp(8), 0, 0, 0));
+        above.addView(row, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.LEFT));
+        final LinearLayout rowF = row;
+        row.post(new Runnable() { public void run() { try {
+            int[] a = new int[2], b = new int[2]; anchor.getLocationOnScreen(a); above.getLocationOnScreen(b);
+            float x = a[0] - b[0] + anchor.getWidth() / 2f - rowF.getWidth() / 2f; x = Math.max(0, Math.min(above.getWidth() - rowF.getWidth(), x));
+            rowF.setTranslationX(x); } catch (Throwable e) {} } });
+        above.setVisibility(View.VISIBLE);
+        fillPlayer();
+    }
+    void fillPlayer() {
+        if (plTitle == null) return;
+        JSONObject m = media;
+        boolean on = m != null && m.optBoolean("active");
+        String ti = on ? m.optString("title", "") : "", ar = on ? m.optString("artist", "") : "", ap = on ? m.optString("app", "") : "";
+        boolean pl = on && m.optBoolean("playing");
+        if (!on) { ti = "Keine Wiedergabe"; ap = "Musik-App öffnen"; }
+        else if (ti.length() == 0) { ti = ap; ap = pl ? "spielt" : "pausiert"; }   // ohne Titel (z. B. Hoerbuch vor dem Laden): App als Titel
+        setTxt(plTitle, ti);
+        setTxt(plSub, ar.length() > 0 ? ar + "  ·  " + ap : ap);
+        String ic = pl ? "pause" : "play"; if (plPlay != null && !ic.equals(plPlay.name)) plPlay.set(ic, WHITE);
+    }
+    void mediaCmd(final String a) {
+        touch();
+        new Thread(new Runnable() { public void run() { try { Api.media(OverlayService.this, new JSONObject().put("a", a)); media = Api.mediaState(OverlayService.this);
+            ui.post(new Runnable() { public void run() { fillPlayer(); } }); } catch (Throwable e) {} } }).start();
+    }
+    void openMusicApp() {
+        JSONObject m = media; String pkg = m != null && m.optBoolean("active") ? m.optString("pkg", "") : "";
+        if (pkg.length() == 0) pkg = "app.revanced.android.apps.youtube.music";
+        try { Intent i = getPackageManager().getLaunchIntentForPackage(pkg); if (i != null) { i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); startActivity(i); } } catch (Throwable e) {}
+        closeAbove(); dockOpen = false;
+    }
 
     void toggleGraph() {
         if (graphOn) { closeAbove(); return; }
@@ -1114,7 +1147,7 @@ public class OverlayService extends Service {
     // ---------------- Einbrennschutz ----------------
     /** Alle 2 min um wenige Pixel verschieben, unmerklich. */
     final Runnable shift = new Runnable() { public void run() {
-        try { boolean sd = "side".equals(mode), gh = "ghost".equals(mode); if (!gh) { lp.x = (sd ? dp(10) : 0) + rnd.nextInt(9) - 4; lp.y = (sd ? 0 : baseY()) + rnd.nextInt(7) - 3; wm.updateViewLayout(root, lp); } } catch (Throwable e) {}
+        try { if (!"ghost".equals(mode)) { lp.x = rnd.nextInt(9) - 4; lp.y = baseY() + rnd.nextInt(7) - 3; wm.updateViewLayout(root, lp); } } catch (Throwable e) {}
         ui.postDelayed(this, 120000);
     }};
 

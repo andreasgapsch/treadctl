@@ -17,9 +17,9 @@
       prev: 'img/apps/jellyfin.jpg', pos: 'center',
       pts: ['Filme und Serien vom eigenen Server', 'Live-TV mit Programmführer', 'Pille und Live-Verlauf darüber'] },
     { pkg: 'com.kinomap.training', name: 'Kinomap', sub: 'Videostrecken aus aller Welt', bg: '#ff6a00', ic: function () { return mono('K'); }, prev: 'img/apps/kinomap.jpg', pos: 'center',
-      pts: ['Videostrecken weltweit', 'Laufband per Bluetooth verbunden', 'Seitenleiste vom linken Rand'] },
+      pts: ['Videostrecken weltweit', 'Laufband per Bluetooth verbunden', 'Menü und Musik von unten'] },
     { pkg: 'com.zwift.zwiftgame', name: 'Zwift', sub: 'Laufen in virtuellen Welten', bg: '#fc6719', ic: function () { return mono('Z'); }, prev: 'img/apps/zwift.jpg', pos: 'center',
-      pts: ['Virtuelle Laufwelten', 'Laufband per Bluetooth verbunden', 'Seitenleiste vom linken Rand'] },
+      pts: ['Virtuelle Laufwelten', 'Laufband per Bluetooth verbunden', 'Menü und Musik von unten'] },
     { pkg: 'com.audiobookshelf.app', name: 'Hörbücher', sub: 'Audiobookshelf vom Heimserver', bg: '#1f6b5a', ic: function () { return I('music'); }, prev: 'img/apps/hoerbuecher.jpg', pos: 'center',
       pts: ['Bibliothek vom eigenen Server', 'läuft im Hintergrund weiter', 'Steuerung bleibt im Vollbild'] }
   ];
@@ -380,7 +380,7 @@
   };
 
   /* ================= Apps ================= */
-  var PREFS = [['pill', 'Steuer-Pille anzeigen', 'unten in Apps, in Kinomap und Zwift seitlich; hochwischen zeigt'], ['pillGraph', 'Live-Verlauf einblenden', 'Tempo, Steigung, Puls über der Pille'],
+  var PREFS = [['pill', 'Steuer-Pille anzeigen', 'im Lauf unten, sonst von unten hochwischen'], ['pillGraph', 'Live-Verlauf einblenden', 'Tempo, Steigung, Puls über der Pille'],
     ['autoCollapse', 'Automatisch einklappen', 'nach 6 s ohne Berührung'], ['hideBar', 'Herstellerleiste ausblenden', 'eigene Statuszeile oben, Apps im Vollbild']];
   // Laufband als Bluetooth-Geraet (FTMS und Laufsensor): Einstellungen liegen im Dienst, nicht in den Oberflaechen-Einstellungen
   function ftmsRows(f) {

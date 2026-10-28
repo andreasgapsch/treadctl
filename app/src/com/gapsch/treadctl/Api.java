@@ -41,6 +41,12 @@ public class Api {
         try { return s != null && new JSONObject(s).optBoolean("ok"); } catch (Exception e) { return false; }
     }
 
+    /** Zustand des Mini-Players (Titel, Interpret, App, spielt), null bei Fehler. */
+    public static JSONObject mediaState(Context c) {
+        String s = http("GET", "/media", null, Token.read(c));
+        try { return s == null ? null : new JSONObject(s); } catch (Exception e) { return null; }
+    }
+
     /** Ventilator: {a: auto|off|level, v}. */
     public static boolean fan(Context c, JSONObject body) {
         String s = http("POST", "/fan", body.toString(), Token.read(c));
