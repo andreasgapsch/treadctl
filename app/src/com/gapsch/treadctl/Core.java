@@ -204,7 +204,12 @@ public class Core implements Runnable {
             android.app.ActivityManager am = (android.app.ActivityManager) ctx.getSystemService(Context.ACTIVITY_SERVICE);
             java.util.List<android.app.ActivityManager.RunningTaskInfo> t = am.getRunningTasks(1);
             if (t == null || t.isEmpty() || t.get(0).topActivity == null) return;
-            String pkg = t.get(0).topActivity.getPackageName(); topPkg = pkg;
+            final String pkg = t.get(0).topActivity.getPackageName();
+            if (!pkg.equals(topPkg) && AppHygiene.heavy(pkg)) {   // eine Trainings- oder Video-App kommt nach vorne: die anderen schliessen
+                log("vorne " + pkg + ", andere schwere Apps zu", 0);
+                new Thread(new Runnable() { public void run() { AppHygiene.closeOthers(ctx, pkg); } }).start();
+            }
+            topPkg = pkg;
             boolean own = !hideBar || pkg.startsWith("com.jht") || pkg.startsWith("com.jhtp") || pkg.startsWith("com.cvte") || pkg.equals("com.android.launcher3");
             if (barShown == null || barShown != own) { bus.putBool("ACTION_STATUS_BAR_PANEL_BOOL", own); barShown = own; log("leiste " + (own ? "ein" : "aus") + " " + pkg, 0); }
         } catch (Throwable e) {}

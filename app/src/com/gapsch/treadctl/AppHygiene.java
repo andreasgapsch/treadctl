@@ -14,6 +14,24 @@ public class AppHygiene {
     static final String[] HELPERS = { "app.revanced.manager.flutter", "com.aurora.store", "com.android.settings" };
     static long lastAt = 0;
 
+    /** Trainings- und Video-Apps: kommt eine davon in den Vordergrund, werden die anderen geschlossen (Zwift allein braucht
+     *  rund 140 % CPU und 1.3 GB; zwei davon gleichzeitig ueberlasten die Konsole). Audio-Apps (YouTube Music,
+     *  Audiobookshelf) fehlen bewusst: sie spielen im Hintergrund weiter. */
+    static final String[] HEAVY = { "com.zwift.zwiftgame", "com.kinomap.training", "org.jellyfin.mobile", "app.revanced.android.youtube",
+        "com.google.android.youtube", "org.smarttube.stable" };
+    static boolean heavy(String pkg) { for (String p : HEAVY) if (p.equals(pkg)) return true; return false; }
+    /** Alle anderen schweren Apps beenden (force-stop, Plattform-App), die eben gestartete bleibt. */
+    static void closeOthers(Context c, String keep) {
+        try {
+            ActivityManager am = (ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE);
+            java.util.Set<String> running = new java.util.HashSet<String>();
+            java.util.List<ActivityManager.RunningAppProcessInfo> ps = am.getRunningAppProcesses();
+            if (ps != null) for (ActivityManager.RunningAppProcessInfo i : ps) if (i.pkgList != null) for (String q : i.pkgList) running.add(q);
+            java.lang.reflect.Method stop = ActivityManager.class.getMethod("forceStopPackage", String.class);
+            for (String p : HEAVY) if (!p.equals(keep) && running.contains(p)) { stop.invoke(am, p); android.util.Log.i("TREADCTL", "app geschlossen: " + p + " (vorne " + keep + ")"); }
+        } catch (Throwable e) { android.util.Log.w("TREADCTL", "apps schliessen: " + e); }
+    }
+
     static void trim(Context c) {
         long now = System.currentTimeMillis();
         if (now - lastAt < 60000) return;   // hoechstens einmal je Minute
