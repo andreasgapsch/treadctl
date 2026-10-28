@@ -195,7 +195,7 @@ adb -s $TREADXP_ADB shell am start-foreground-service -n com.gapsch.treadctl/.Tr
 | Test | Command | Needs device |
 |---|---|---|
 | Control logic scenarios (simulated treadmill) | `bash app/tools/coretest/test.sh` | no |
-| UI audit (demo mode, Lighthouse, accessibility) | `cd app/tools && npm ci && bash audit-waechter.sh` | no |
+| UI audit (demo mode, Lighthouse, accessibility; about 3 min, 8 browser tabs in parallel, fewer with `--par=4`) | `cd app/tools && npm ci && bash audit-waechter.sh` | no |
 | Route planner time-lapse | `app/tools/sim/RouteSim.java` | no |
 | Access protection | `bash app/tools/security-test.sh` | yes, belt stopped |
 | Fault handling on the belt | `bash app/tools/fault-test.sh` | yes, **person at the treadmill** |

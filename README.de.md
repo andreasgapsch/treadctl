@@ -197,7 +197,7 @@ adb -s $TREADXP_ADB shell am start-foreground-service -n com.gapsch.treadctl/.Tr
 | Prüfung | Aufruf | Braucht Gerät |
 |---|---|---|
 | Szenariotests Steuerlogik (simuliertes Band) | `bash app/tools/coretest/test.sh` | nein |
-| Oberflächen-Audit (Demo, Lighthouse, Barrierefreiheit) | `cd app/tools && npm ci && bash audit-waechter.sh` | nein |
+| Oberflächen-Audit (Demo, Lighthouse, Barrierefreiheit; rund 3 min, 8 Browser-Tabs parallel, weniger mit `--par=4`) | `cd app/tools && npm ci && bash audit-waechter.sh` | nein |
 | Zeitraffer Streckenplanung | `app/tools/sim/RouteSim.java` | nein |
 | Zugriffsschutz | `bash app/tools/security-test.sh` | ja, Band steht |
 | Fehlerfälle am Band | `bash app/tools/fault-test.sh` | ja, **Person am Band** |

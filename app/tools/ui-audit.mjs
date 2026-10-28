@@ -78,6 +78,12 @@ const BASE = `http://127.0.0.1:${server.address().port}/`;
 
 const res = [];   // [ok, punkt, detail]
 const add = (ok, p, d = '') => res.push([!!ok, p, d]);
+// Parallel ausfuehren: Ansichten und Ablaeufe warten meist auf Zeitgeber (Countdown, Einlaufen, Banner), nicht auf die CPU
+const PAR = Math.max(1, +((args.find(x => x.startsWith('--par=')) || '--par=8').slice(6)) || 8);
+async function pool(jobs, n = PAR) {
+  let k = 0;
+  await Promise.all(Array.from({ length: Math.min(n, jobs.length) }, async () => { while (k < jobs.length) await jobs[k++](); }));
+}
 
 /* ---------- Ansichten ---------- */
 const VIEWS = [
@@ -311,7 +317,9 @@ async function openView(v, ctx) {
   return page;
 }
 
-for (const v of VIEWS) {
+/* Jede Ansicht in eigenem Kontext; mehrere parallel (--par=N, Standard 8). Ansichten mit Vergleichsbild (cmp)
+   laufen danach, weil sie das Bild der Bezugsansicht brauchen. Ergebnisse in der Reihenfolge von VIEWS. */
+async function runView(v, add) {
   const ctx = await browser.newContext(ctxOpts);
   const page = await openView(v, ctx);
   await page.addStyleTag({ content: '*,*::before,*::after{transition:none!important;animation:none!important}' });
@@ -324,7 +332,7 @@ for (const v of VIEWS) {
     const s = await similarity(shot, shots[v.cmp]);
     add(s > 99, `Flex-gap-Ersatz (Chrome 83) ${v.cmp}: gleiches Bild`, s.toFixed(2) + ' %');
   }
-  if (v.n.endsWith('-nogap')) { await ctx.close(); continue; }
+  if (v.n.endsWith('-nogap')) { await ctx.close(); return; }
 
   // Platzhalter: nirgends ein einzelnes «-» als Wert (einheitlich «--»)
   const dash = await page.evaluate(() => {
@@ -406,6 +414,10 @@ for (const v of VIEWS) {
   }
   await ctx.close();
 }
+const vRes = VIEWS.map(() => []);
+await pool(VIEWS.map((v, i) => () => runView(v, (ok, p, d = '') => vRes[i].push([!!ok, p, d]))).filter((f, i) => !VIEWS[i].cmp));
+for (let i = 0; i < VIEWS.length; i++) if (VIEWS[i].cmp) await runView(VIEWS[i], (ok, p, d = '') => vRes[i].push([!!ok, p, d]));
+vRes.forEach(a => res.push(...a));
 
 add(!consoleErr.length, 'Keine JS-Fehler oder Warnungen in der Konsole', consoleErr.length ? consoleErr.slice(0, 8).join('\n      ') : `${VIEWS.length} Ansichten`);
 add(!touchBad.length, 'Touch-Ziele >= 48 CSS-px, Steuerleiste >= 60, Statuszeile 40 hoch und >= 48 breit', touchBad.length ? touchBad.slice(0, 12).join('\n      ') : `${touchN} Ziele geprüft`);
@@ -414,15 +426,32 @@ add(!axeBad.length, 'axe-core WCAG 2.1 A/AA + Best Practice ohne Verstoss', axeB
 add(!dashBad.length, 'Einheitlicher Platzhalter «--» (kein einzelnes «-» als Wert)', dashBad.length ? dashBad.slice(0, 8).join(', ') : 'alle Ansichten geprüft');
 
 /* ---------- Ablaeufe ---------- */
+/* Ablaeufe laufen parallel (je eigener Kontext); flow() reserviert den Platz im Ergebnis und kehrt sofort zurueck.
+   Ablaeufe, die gemeinsamen Zustand des Pruefservers aendern oder lesen (Kacheln aus, swisstopo-Protokoll),
+   laufen am Schluss einzeln (SOLO). flowsDone() wartet auf alle. */
+const FQ = [], FSOLO = [], FRUN = [];
+let fActive = 0;
+const SOLO = /gesperrtem Netz|Import-Parser GPX und TCX/;
+function flowPump() {
+  while (fActive < PAR && FQ.length) { const j = FQ.shift(); fActive++; FRUN.push(j().finally(() => { fActive--; flowPump(); })); }
+}
+async function flowsDone() {
+  while (FQ.length || fActive) await Promise.all(FRUN.slice());
+  for (const j of FSOLO) await j();
+}
 async function flow(name, fn, netOk, swiss) {
   if (FLOWF && name.indexOf(FLOWF) < 0) return;
-  const ctx = await browser.newContext(ctxOpts); await guard(ctx, 'Ablauf «' + name.slice(0, 30) + '»', swiss);
-  const page = await ctx.newPage(), errs = [];
-  page.on('pageerror', e => errs.push(e.message));
-  page.on('console', m => { if (m.type() === 'error' && !(netOk && /Failed to load resource/.test(m.text()))) errs.push(m.text()); });
-  try { const r = await fn(page); add(r.ok && !errs.length, name, (r.d || '') + (errs.length ? ' Fehler: ' + errs.join('; ') : '')); }
-  catch (e) { add(false, name, 'Ausnahme: ' + e.message); }
-  await ctx.close();
+  const slot = res.length; res.push([false, name, 'nicht gelaufen']);
+  const job = async () => {
+    const ctx = await browser.newContext(ctxOpts); await guard(ctx, 'Ablauf «' + name.slice(0, 30) + '»', swiss);
+    const page = await ctx.newPage(), errs = [];
+    page.on('pageerror', e => errs.push(e.message));
+    page.on('console', m => { if (m.type() === 'error' && !(netOk && /Failed to load resource/.test(m.text()))) errs.push(m.text()); });
+    try { const r = await fn(page); res[slot] = [!!(r.ok && !errs.length), name, (r.d || '') + (errs.length ? ' Fehler: ' + errs.join('; ') : '')]; }
+    catch (e) { res[slot] = [false, name, 'Ausnahme: ' + e.message]; }
+    await ctx.close();
+  };
+  if (SOLO.test(name)) FSOLO.push(job); else { FQ.push(job); flowPump(); }
 }
 const st = p => p.evaluate(() => window.TX.api.state);
 // Befehle der Oberflaeche ohne das einmalige Profil beim Laden (Gewicht, HFmax)
@@ -1879,6 +1908,7 @@ if (!ONLY.length) {
     return { ok, d: `Kacheln leer (${tileReq - n0} Anfragen an 127.0.0.1), Linien ${r.line}, Punkt ${r.me}, Start/Ziel ${r.start}/${r.ziel}, Profil ${r.prof}, Soll-Pace «${r.sp}»` };
   });
 }
+await flowsDone();
 add(!extReq.length, 'Kein Zugriff auf fremde Hosts: jede Anfrage ausser 127.0.0.1 abgefangen (alle Ansichten und Abläufe, Ausnahme gemockter swisstopo-Import)', extReq.length ? extReq.slice(0, 8).join('\n      ') : 'keine Anfrage nach aussen');
 
 /* ---------- Lighthouse ---------- */
