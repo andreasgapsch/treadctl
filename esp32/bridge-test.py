@@ -61,7 +61,9 @@ t('Board antwortet auf das Lebenszeichen', 'A' in rx, '')
 threading.Thread(target=beat, daemon=True).start()
 
 api('/api/probe', {'a': 'scan'}); time.sleep(8)
-st = api('/api/probe'); found = [f for f in st.get('found', []) if f.get('name') == NAME]
+st = api('/api/probe')
+# Android zeigt fuer schon bekannte Geraete den gespeicherten Namen; darum auch das Board mit FTMS-Dienst unter altem Namen
+found = [f for f in st.get('found', []) if f.get('name') == NAME] or [f for f in st.get('found', []) if f.get('name') in ('Tread Control', 'KICKR RUN') and '1826' in str(f.get('uuids'))]
 t('Konsole findet das Board per Bluetooth', bool(found), (found[0].get('address') + ', ' + str(found[0].get('rssi')) + ' dBm') if found else 'nicht gefunden')
 if found:
     api('/api/probe', {'a': 'connect', 'address': found[0]['address']}); time.sleep(6)
