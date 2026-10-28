@@ -39,7 +39,7 @@ def reader():
             l, buf = buf.split(b'\n', 1); l = l.decode(errors='replace').strip()
             if l: rx.append(l)
             if l.startswith('W '):   # Steuerpunkt: wie die Konsole mit «Erfolg» antworten (ohne Band)
-                op = l.split()[2][:2]; ser.write(('I 80%s01\n' % op).encode())
+                conn, op = l.split()[1], l.split()[2][:2]; ser.write(('I %s 80%s01\n' % (conn, op)).encode())
 threading.Thread(target=reader, daemon=True).start()
 alive = True
 def beat():
@@ -56,6 +56,8 @@ ser.write(('H %s\n' % NAME).encode())
 ser.write(('V 2ad4 %s\n' % struct.pack('<HHH', 80, 1400, 10).hex()).encode())   # 0.8 bis 14 km/h
 time.sleep(1)
 t('Board meldet sich', any(l.startswith('R tread-control-esp32') for l in rx), next((l for l in rx if l.startswith('R ')), 'keine Antwort'))
+ser.write(b'P\n'); time.sleep(0.5)
+t('Board antwortet auf das Lebenszeichen', 'A' in rx, '')
 threading.Thread(target=beat, daemon=True).start()
 
 api('/api/probe', {'a': 'scan'}); time.sleep(8)

@@ -592,8 +592,9 @@ public class Core implements Runnable {
     void appApply() {
         appCmdAt = clock();
         try {
-            if (appPendS >= 0) { endHold(); rampSpeed(appPendS, "app"); log("app tempo", (float) appPendS); }
-            if (appPendI >= 0) { applyIncl((float) appPendI, "app"); log("app steigung " + appPendI, tSpeed); }
+            // Blackbox nur bei geaendertem Wert (Zwift schickt die Steigung fast jede Sekunde)
+            if (appPendS >= 0) { boolean ch = Math.abs(appPendS - (rampTarget > 0 ? rampTarget : tSpeed)) > 0.05; endHold(); rampSpeed(appPendS, "app"); if (ch) log("app tempo", (float) appPendS); }
+            if (appPendI >= 0) { boolean ch = Math.abs(appPendI - tIncl) > 0.05; applyIncl((float) appPendI, "app"); if (ch) log("app steigung " + appPendI, tSpeed); }
         } catch (Throwable e) { log("app-fehler", tSpeed); }
         appPendS = -1; appPendI = -1;
     }

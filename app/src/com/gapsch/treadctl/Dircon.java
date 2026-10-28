@@ -19,6 +19,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.LinkedBlockingQueue;
 
 /** DIRCON (Wahoo Direct Connect): dieselben FTMS- und Laufsensor-Merkmale wie ueber Bluetooth, aber ueber TCP im WLAN.
  *  Noetig fuer Apps auf der Konsole selbst (Bluetooth verbindet nicht mit sich selbst). Gefunden per mDNS
@@ -44,19 +45,32 @@ public class Dircon {
     ServerSocket ss; NsdManager.RegistrationListener reg;
     final CopyOnWriteArrayList<Client> clients = new CopyOnWriteArrayList<Client>();
 
+    /** Gegenstelle mit eigener Sendewarteschlange: ein langsamer oder toter Client blockiert nie den gemeinsamen Takt
+     *  (Bluetooth, ESP32). Laeuft die Warteschlange voll (rund 30 s Meldungen), wird er getrennt. */
     class Client {
         final Socket s; final OutputStream out; final String who;
         final Set<UUID> subs = Collections.synchronizedSet(new HashSet<UUID>());
-        Client(Socket s, String who) throws IOException { this.s = s; out = s.getOutputStream(); this.who = who; }
-        synchronized void send(int id, int seq, int code, byte[] data) {
-            try {
-                int n = data == null ? 0 : data.length; byte[] b = new byte[6 + n];
-                b[0] = 1; b[1] = (byte) id; b[2] = (byte) seq; b[3] = (byte) code; b[4] = (byte) (n >> 8); b[5] = (byte) n;
-                if (n > 0) System.arraycopy(data, 0, b, 6, n);
-                out.write(b); out.flush();
-            } catch (IOException e) { close(); }
+        final LinkedBlockingQueue<byte[]> q = new LinkedBlockingQueue<byte[]>(96);
+        volatile boolean open = true;
+        Client(Socket s, String who) throws IOException {
+            this.s = s; out = s.getOutputStream(); this.who = who;
+            new Thread(new Runnable() { public void run() { write(); } }, "dircon-w").start();
         }
-        void close() { try { s.close(); } catch (Throwable e) {} clients.remove(this); }
+        void send(int id, int seq, int code, byte[] data) {
+            int n = data == null ? 0 : data.length; byte[] b = new byte[6 + n];
+            b[0] = 1; b[1] = (byte) id; b[2] = (byte) seq; b[3] = (byte) code; b[4] = (byte) (n >> 8); b[5] = (byte) n;
+            if (n > 0) System.arraycopy(data, 0, b, 6, n);
+            if (open && !q.offer(b)) { Log.w(T, "dircon: Client liest nicht, getrennt"); close(); }
+        }
+        void write() {
+            try { while (open) { byte[] b = q.take(); out.write(b); out.flush(); } } catch (Throwable e) {}
+            close();
+        }
+        void close() {
+            if (!open) return;
+            open = false; q.clear(); q.offer(new byte[0]);   // weckt den Schreiber
+            try { s.close(); } catch (Throwable e) {} clients.remove(this);
+        }
     }
 
     Dircon(Context c, FtmsServer f) { ctx = c; this.f = f; }

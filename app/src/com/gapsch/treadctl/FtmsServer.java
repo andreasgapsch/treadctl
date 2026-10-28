@@ -50,7 +50,8 @@ public class FtmsServer {
     final Map<String, Set<UUID>> subs = new HashMap<String, Set<UUID>>();   // Abos je Geraet (nur echte Gegenstellen, nicht Ventilator/Puls)
     final Map<String, String> names = new HashMap<String, String>();
     final Semaphore sent = new Semaphore(0);
-    Thread loop; long lastManual; String lastSt = ""; int lastTrain = -1;
+    Thread loop; long lastManual; String lastSt = ""; int lastTrain = -1; volatile long advRestartAt;
+    final Object tx = new Object();   // Bluetooth-Meldungen nacheinander (eine Bestaetigung je Meldung)
 
     FtmsServer(Context c, Core core) {
         ctx = c; this.core = core; prefs = c.getSharedPreferences("ftms", Context.MODE_PRIVATE);
@@ -70,6 +71,8 @@ public class FtmsServer {
             if (s == BluetoothAdapter.STATE_TURNING_OFF || s == BluetoothAdapter.STATE_OFF) close("Bluetooth aus");
         } }, f);
         loop = new Thread(new Runnable() { public void run() { run1(); } }, "ftms"); loop.start();
+        // Hersteller-FTMS wirbt nach dem Booten sofort: gleich und nach 10 s anhalten, nicht erst im 30-s-Takt
+        new Thread(new Runnable() { public void run() { jhtGuard(); sleep(10000); jhtGuard(); } }).start();
         if (on) restart();
         if (on && dirconOn) dircon.start(name);
         usb.start();   // ESP32-S3 am USB: uebernimmt Bluetooth, sobald es steckt
@@ -181,7 +184,8 @@ public class FtmsServer {
                 boolean was; synchronized (subs) { was = subs.remove(d.getAddress()) != null; names.remove(d.getAddress()); }
                 if (was) Log.i(T, "ftms: getrennt " + d.getAddress());
             }
-            if (ns == BluetoothProfile.STATE_CONNECTED && on) { stopAdv(); startAdv(); }   // Werbung weiter, damit Uhr und App gleichzeitig verbinden koennen
+            // Werbung weiter, damit Uhr und App gleichzeitig verbinden koennen; hoechstens alle 5 s (auch Ventilator und Puls melden sich hier)
+            if (ns == BluetoothProfile.STATE_CONNECTED && on && server != null && Core.clock() - advRestartAt > 5000) { advRestartAt = Core.clock(); stopAdv(); startAdv(); }
         }
         @Override public void onCharacteristicReadRequest(BluetoothDevice d, int id, int off, BluetoothGattCharacteristic c) {
             byte[] v = read(c.getUuid());
@@ -254,7 +258,7 @@ public class FtmsServer {
         BluetoothGattServer s = server; if (s == null || c == null) return;
         boolean subd; synchronized (subs) { Set<UUID> x = subs.get(d.getAddress()); subd = x != null && x.contains(c.getUuid()); }
         if (!subd) return;
-        try { sent.drainPermits(); c.setValue(v); if (s.notifyCharacteristicChanged(d, c, indicate)) sent.tryAcquire(300, TimeUnit.MILLISECONDS); } catch (Throwable e) {}
+        synchronized (tx) { try { sent.drainPermits(); c.setValue(v); if (s.notifyCharacteristicChanged(d, c, indicate)) sent.tryAcquire(300, TimeUnit.MILLISECONDS); } catch (Throwable e) {} }
     }
     void toAll(BluetoothGattCharacteristic c, byte[] v) {
         BluetoothGattServer s = server; if (s == null) return;

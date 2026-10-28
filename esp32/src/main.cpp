@@ -4,10 +4,11 @@
 //   H <name>                  Name fuer Werbung und GAP (bis 20 Zeichen), startet die Werbung
 //   V <uuid16> <hex>          lesbarer Wert (Feature, Bereiche, Trainingszustand, Laufsensor-Merkmale)
 //   N <uuid16> <hex>          Meldung an alle Abonnenten (Laufdaten, Laufsensor, Zustand)
-//   I <hex>                   Antwort des Steuerpunkts 0x2AD9 (Anzeige an die Abonnenten)
-//   P                         Lebenszeichen (mindestens alle 3 s)
+//   I <conn> <hex>            Antwort des Steuerpunkts 0x2AD9 als Anzeige an die App, die den Befehl geschickt hat
+//   P                         Lebenszeichen (jede Sekunde, das Board antwortet mit A)
 // und gehen Zeilen an die Konsole:
 //   R tread-control-esp32 <version>          bereit (nach Start und auf ?)
+//   A                                        Antwort auf das Lebenszeichen (die Konsole erkennt so ein haengendes Board)
 //   C <conn> <adresse>                       Gegenstelle verbunden
 //   X <conn>                                 getrennt
 //   S <conn> <uuid16> <0|1|2>                Abo aus/Meldung/Anzeige
@@ -17,7 +18,7 @@
 #include <Arduino.h>
 #include <NimBLEDevice.h>
 
-static const char *VERSION = "1.0.0";
+static const char *VERSION = "1.1.0";
 static const uint16_t U_FTMS = 0x1826, U_RSC = 0x1814, U_DIS = 0x180A;
 static const uint16_t U_FEAT = 0x2ACC, U_TREAD = 0x2ACD, U_TRAIN = 0x2AD3, U_SPEED = 0x2AD4, U_INCL = 0x2AD5,
                       U_CTRL = 0x2AD9, U_MACH = 0x2ADA, U_RSCM = 0x2A53, U_RSCF = 0x2A54, U_RSCL = 0x2A5D;
@@ -63,13 +64,19 @@ class SrvCb : public NimBLEServerCallbacks {
   }
 };
 
+// Anzeige nur an eine Verbindung (NimBLE-Arduino 1.4 kennt nur «an alle»)
+static void indicateTo(uint16_t conn, const uint8_t *v, size_t n) {
+  struct os_mbuf *om = ble_hs_mbuf_from_flat(v, n);
+  if (om) ble_gattc_indicate_custom(conn, cCtrl->getHandle(), om);
+}
+
 class ChrCb : public NimBLECharacteristicCallbacks {
   void onWrite(NimBLECharacteristic *c, ble_gap_conn_desc *d) override {
     if (c != cCtrl) return;
     std::string v = c->getValue();
     if (!online) {   // Konsole stumm: nichts weiterleiten, sofort «fehlgeschlagen»
       uint8_t r[3] = {0x80, v.empty() ? (uint8_t)0 : (uint8_t)v[0], 0x04};
-      cCtrl->setValue(r, 3); cCtrl->indicate();
+      indicateTo(d->conn_handle, r, 3);
       return;
     }
     Serial.printf("W %u %s\n", d->conn_handle, hex(v).c_str());
@@ -106,7 +113,7 @@ static void handle(String l) {
   char k = l[0];
   lastPing = millis();
   if (!online) { online = true; }
-  if (k == 'P') return;
+  if (k == 'P') { Serial.print("A\n"); return; }
   if (k == '?') { Serial.printf("R tread-control-esp32 %s\n", VERSION); return; }
   if (k == 'H') {
     String n = l.substring(2); n.trim();
@@ -126,14 +133,19 @@ static void handle(String l) {
     return;
   }
   if (k == 'I') {
-    std::string v = unhex(l.substring(2));
-    cCtrl->setValue((const uint8_t *)v.data(), v.size()); cCtrl->indicate();
+    int sp = l.indexOf(' ', 2);
+    if (sp < 0) { std::string v = unhex(l.substring(2)); cCtrl->setValue((const uint8_t *)v.data(), v.size()); cCtrl->indicate(); return; }
+    uint16_t conn = (uint16_t)l.substring(2, sp).toInt();
+    std::string v = unhex(l.substring(sp + 1));
+    indicateTo(conn, (const uint8_t *)v.data(), v.size());
     return;
   }
 }
 
 void setup() {
+  Serial.setRxBufferSize(1024);   // Gruss der Konsole (Name und alle Werte) passt in einem Stueck
   Serial.begin(115200);
+  enableLoopWDT();                 // haengt die Schleife, startet das Board selbst neu
   Serial.setTxTimeoutMs(0);   // ohne lesende Gegenstelle nie blockieren
   NimBLEDevice::init(name.c_str());
   NimBLEDevice::setPower(ESP_PWR_LVL_P6);

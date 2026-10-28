@@ -25,7 +25,7 @@ public class UsbBridge {
     UsbDeviceConnection conn; UsbInterface dataIf; UsbEndpoint in, out;
     final Map<Integer, String> clients = new ConcurrentHashMap<Integer, String>();
     final Map<Integer, Integer> subs = new ConcurrentHashMap<Integer, Integer>();   // Verbindung -> Anzahl Abos
-    long lastRx;
+    volatile long lastRx, checkAt, blockedUntil; int resets; long resetWin;
 
     UsbBridge(Context c, FtmsServer f) { ctx = c; this.f = f; }
 
@@ -34,7 +34,7 @@ public class UsbBridge {
     void loop() {
         byte[] buf = new byte[512]; StringBuilder line = new StringBuilder();
         while (f.core.alive) {
-            if (!connected) { FtmsServer.sleep(2000); if (f.on) open(); continue; }
+            if (!connected) { FtmsServer.sleep(2000); if (f.on && Core.clock() > blockedUntil) open(); continue; }
             int n;
             try { n = conn.bulkTransfer(in, buf, buf.length, 300); } catch (Throwable e) { n = -2; }
             if (n > 0) {
@@ -44,9 +44,37 @@ public class UsbBridge {
                     if (ch == '\n') { handle(line.toString().trim()); line.setLength(0); }
                     else if (ch != '\r' && line.length() < 600) line.append(ch);
                 }
-            } else if (!present()) { close("getrennt"); }
+            }
+            long now = Core.clock();
+            if (now - checkAt > 2000) {   // Anwesenheit und Lebenszeichen alle 2 s pruefen, nicht bei jedem leeren Lesen
+                checkAt = now;
+                if (!present()) close("getrennt");
+                else if (now - lastRx > 6000) stalled(now);
+            }
             if (!f.on) close("aus");
         }
+    }
+
+    /** Board antwortet nicht (Firmware haengt, USB bleibt aber angemeldet): Neustart ueber RTS; nach zwei Versuchen
+     *  in einer Minute zurueck zum eigenen Bluetooth der Konsole, neuer Versuch nach 60 s. */
+    void stalled(long now) {
+        if (now - resetWin > 60000) { resetWin = now; resets = 0; }
+        if (++resets > 2) { close("antwortet nicht, eigenes Bluetooth"); blockedUntil = now + 60000; return; }
+        Log.w(T, "esp32: keine Antwort seit " + (now - lastRx) / 1000 + " s, Neustart");
+        reset(); lastRx = now;
+        FtmsServer.sleep(1500); hello();
+    }
+    /** Neustart des ESP32 ueber die USB-Serial-JTAG-Steuerleitungen: RTS an (DTR aus) haelt den Chip im Reset, RTS aus startet normal. */
+    synchronized void reset() {
+        try {
+            UsbManager um = (UsbManager) ctx.getSystemService(Context.USB_SERVICE);
+            int ifc = 0;
+            for (UsbDevice d : um.getDeviceList().values()) if (d.getVendorId() == VID && d.getProductId() == PID)
+                for (int i = 0; i < d.getInterfaceCount(); i++) if (d.getInterface(i).getInterfaceClass() == UsbConstants.USB_CLASS_COMM) ifc = d.getInterface(i).getId();
+            conn.controlTransfer(0x21, 0x22, 0x02, ifc, null, 0, 300);
+            FtmsServer.sleep(120);
+            conn.controlTransfer(0x21, 0x22, 0x00, ifc, null, 0, 300);
+        } catch (Throwable e) { Log.w(T, "esp32: Neustart " + e); }
     }
 
     boolean present() {
@@ -121,12 +149,13 @@ public class UsbBridge {
         try {
             switch (p[0]) {
                 case "R": fw = p.length > 2 ? p[2] : ""; Log.i(T, "esp32: bereit, Firmware " + fw); break;
+                case "A": break;   // Antwort auf das Lebenszeichen
                 case "C": clients.put(Integer.parseInt(p[1]), p.length > 2 ? p[2] : ""); Log.i(T, "esp32: Gegenstelle " + l.substring(2)); break;
                 case "X": { int c = Integer.parseInt(p[1]); clients.remove(c); subs.remove(c); Log.i(T, "esp32: getrennt " + c); break; }
                 case "S": { int c = Integer.parseInt(p[1]); int on = Integer.parseInt(p[3]); Integer n = subs.get(c); subs.put(c, Math.max(0, (n == null ? 0 : n) + (on != 0 ? 1 : -1))); break; }
                 case "W": {   // Steuerpunkt: Entscheid in der Steuerung, Antwort zurueck ans Board
                     byte[] r = f.control(unhex(p.length > 2 ? p[2] : ""), "App (Bluetooth)");
-                    send("I " + hex(r)); break;
+                    send("I " + p[1] + " " + hex(r)); break;   // Antwort nur an die App, die den Befehl geschickt hat
                 }
                 default: break;
             }
