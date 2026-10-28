@@ -589,7 +589,18 @@ public class Core implements Runnable {
         if (op == FtmsData.OP_STOP) { stopNow("app"); return FtmsData.RES_OK; }
         synchronized (lock) {
             // Start/Weiter: laeuft das Band schon, nur bestaetigen (Apps erwarten Erfolg); sonst nie, der Start bleibt an der Konsole
-            if (op == FtmsData.OP_START) { if (LAEUFT.equals(st)) return FtmsData.RES_OK; log("app-start abgewiesen", tSpeed); return FtmsData.RES_NOT_PERMITTED; }
+            if (op == FtmsData.OP_START) {
+                if (LAEUFT.equals(st)) return FtmsData.RES_OK;
+                // App auf der Konsole selbst im Vordergrund (Kinomap, Zwift): wie die START-Taste, 3 s Countdown, STOP bricht ab
+                if (appCtl && !appBlocked && AppHygiene.ownDisplay(topPkg) && (BEREIT.equals(st) || PAUSE.equals(st)) && speed < 0.3f) {
+                    if (hwStartAt > 0) return FtmsData.RES_OK;
+                    if (pulled != 0 || safe != 1 || photoLock()) { log("app-start ignoriert (Schlüssel/Sperre)", 0); return FtmsData.RES_FAILED; }
+                    hwResume = PAUSE.equals(st); armAt = clock(); hwStartAt = armAt + 3000; pauseIdle = 0;
+                    note = "Band läuft in 3 s an · STOP bricht ab"; log("app start " + topPkg, 0);
+                    return FtmsData.RES_OK;
+                }
+                log("app-start abgewiesen", tSpeed); return FtmsData.RES_NOT_PERMITTED;
+            }
             if (op == FtmsData.OP_REQUEST || op == FtmsData.OP_RESET) return appCtl && !appBlocked ? FtmsData.RES_OK : FtmsData.RES_NOT_PERMITTED;
             if (op != FtmsData.OP_SPEED && op != FtmsData.OP_INCL) return FtmsData.RES_UNSUPPORTED;
             if (Double.isNaN(v)) return FtmsData.RES_INVALID;

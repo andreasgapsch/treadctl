@@ -19,6 +19,10 @@ public class AppHygiene {
      *  Audiobookshelf) fehlen bewusst: sie spielen im Hintergrund weiter. */
     static final String[] HEAVY = { "com.zwift.zwiftgame", "com.kinomap.training", "org.jellyfin.mobile", "app.revanced.android.youtube",
         "com.google.android.youtube", "org.smarttube.stable" };
+    /** Apps mit eigener Anzeige von Tempo und Steigung, die auf der Konsole selbst laufen: statt der Pille die Seitenleiste;
+     *  ihr Start-Befehl gilt wie die START-Taste (die Person steht vor der Konsole). */
+    static final String[] OWN_DISPLAY = { "com.kinomap.training", "com.zwift.zwiftgame" };
+    static boolean ownDisplay(String pkg) { for (String p : OWN_DISPLAY) if (p.equals(pkg)) return true; return false; }
     static boolean heavy(String pkg) { for (String p : HEAVY) if (p.equals(pkg)) return true; return false; }
     /** Alle anderen schweren Apps beenden (force-stop, Plattform-App), die eben gestartete bleibt. */
     static void closeOthers(Context c, String keep) {

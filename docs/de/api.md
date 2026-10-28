@@ -159,7 +159,9 @@ von der Konsole selbst an (`lan: false`); `lan: true` öffnet es für Apps im WL
   (Meldung «Steuerung verloren» an die App), ohne Lebenszeichen der Oberfläche nicht hochregeln.
 - Zustand: `appCtl` (Steuerung erlaubt), `app` (Name der App, die in den letzten 15 s gesteuert hat), Quelle `src: "app"`.
 - Befehl `appRelease`: «Zurück an Konsole», sperrt Apps bis zum nächsten Start.
-- Start/Weiter einer App: bei laufendem Band nur bestätigt (Apps erwarten Erfolg), sonst «nicht erlaubt».
+- Start/Weiter einer App: bei laufendem Band nur bestätigt (Apps erwarten Erfolg). Läuft Kinomap oder Zwift auf der Konsole
+  im Vordergrund und ist App-Steuerung erlaubt, wirkt der Start wie die START-Taste (3 s Countdown, STOP bricht ab, 15 s mit
+  1 km/h); sonst «nicht erlaubt». BEENDEN in der Pille bleibt in diesen Apps (Zusammenfassung im Verlauf).
 - Opcode `0x11` (Indoor Bike Simulation, Zwift): die Steigung (Bytes 3 und 4, 0.01 %) wirkt wie ein Steigungsbefehl,
   Gefälle wird 0. Wahoo-Run-Dienst (`A026EE0E-…`, E03E schreiben, E03D melden): Zwift schickt dort `11 lo hi`
   (0.01 %), DIRCON auch `46 lo hi`; gleiche Regeln, über Bluetooth ohne Antwort, über DIRCON `FE op 02`.

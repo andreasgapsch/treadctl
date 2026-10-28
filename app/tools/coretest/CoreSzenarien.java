@@ -365,6 +365,20 @@ public class CoreSzenarien {
             s.startRun(); s.run(20); s.c.manualAt = 0;
             t("App im Intervallprogramm gesperrt", s.c.appCmd(FtmsData.OP_SPEED, 12, "Zwift") == FtmsData.RES_NOT_PERMITTED, "Soll " + s.c.tSpeed);
         }
+        { // 30 Start aus einer App auf der Konsole (Kinomap, Zwift): wie die START-Taste mit 3 s Countdown; sonst nie
+            CoreSzenarien s = new CoreSzenarien(); s.run(0.4); s.c.appCtl = true;
+            s.c.topPkg = "com.example.fremd";
+            t("App-Start ohne eigene App im Vordergrund abgewiesen", s.c.appCmd(FtmsData.OP_START, Double.NaN, "App") == FtmsData.RES_NOT_PERMITTED && s.c.hwStartAt == 0, "");
+            s.c.topPkg = "com.kinomap.training";
+            int r = s.c.appCmd(FtmsData.OP_START, Double.NaN, "App"); s.run(1);
+            boolean waiting = "BEREIT".equals(s.c.st) && s.c.hwStartAt > 0;
+            s.c.appCmd(FtmsData.OP_STOP, 1, "App"); s.run(4);
+            t("Kinomap-Start: Countdown läuft, STOP bricht ab", r == FtmsData.RES_OK && waiting && "BEREIT".equals(s.c.st) && s.c.hwStartAt == 0, s.c.st);
+            s.run(16); s.c.appCmd(FtmsData.OP_START, Double.NaN, "App"); s.run(3.6);
+            t("Kinomap-Start nach Countdown: Band läuft mit 1 km/h an", "LAEUFT".equals(s.c.st) && s.c.tSpeed <= 1.05f, s.c.st + " " + s.c.tSpeed);
+            CoreSzenarien q = new CoreSzenarien(); q.run(0.4); q.c.topPkg = "com.kinomap.training";
+            t("Ohne erlaubte App-Steuerung kein Start", q.c.appCmd(FtmsData.OP_START, Double.NaN, "App") == FtmsData.RES_NOT_PERMITTED && q.c.hwStartAt == 0, "");
+        }
         { // 29 Standby der Konsole (ERP) und Beruehrungsmeldung
             CoreSzenarien s = new CoreSzenarien(); s.run(31);
             t("Standby-Stufe der Konsole gelesen (Werk 10 min)", s.c.erpIdx == 2 && new JSONObject(s.c.stateJson(false)).optInt("erp") == 2, "" + s.c.erpIdx);

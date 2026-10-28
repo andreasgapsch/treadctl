@@ -159,7 +159,9 @@ console itself (`lan: false`); `lan: true` opens it to apps in the Wi-Fi (PC, Ap
   30 s ("control lost" is sent to the app), no increases without a sign of life from the UI.
 - State: `appCtl` (control allowed), `app` (name of the app that controlled within the last 15 s), source `src: "app"`.
 - Command `appRelease`: "back to the console", blocks apps until the next start.
-- Start/resume from an app: only acknowledged while the belt is running (apps expect success), otherwise "not permitted".
+- Start/resume from an app: only acknowledged while the belt is running (apps expect success). If Kinomap or Zwift runs on the
+  console in the foreground and app control is allowed, start acts like the START key (3 s countdown, STOP cancels, 15 s at
+  1 km/h); otherwise "not permitted". END in the pill stays in these apps (summary in the history).
 - Opcode `0x11` (Indoor Bike Simulation, Zwift): the grade (bytes 3 and 4, 0.01 %) acts as an incline command, downhill
   becomes 0. Wahoo Run service (`A026EE0E-…`, E03E write, E03D notify): Zwift sends `11 lo hi` (0.01 %), DIRCON also
   `46 lo hi`; same rules, no answer over Bluetooth, `FE op 02` over DIRCON.

@@ -157,7 +157,7 @@ geprüften Produkt:
    nachgeprüft. Die Noten sind ehrlich: Eine Runde fiel auf 6.5, weil sie einen kritischen Fehler bei
    Busausfällen fand. Dazu ein eigener Stabilitätsreview (Neustarts, Bluetooth, Uhrensprünge,
    hängende Oberfläche) und Leistungsmessungen am Gerät (Ruhelast der Oberfläche von 14 auf 3 %).
-5. **Automatisierte Nachweise:** 93 Szenariotests der Steuerlogik gegen ein simuliertes Band
+5. **Automatisierte Nachweise:** 97 Szenariotests der Steuerlogik gegen ein simuliertes Band
    (inklusive echter Hauptschleife bei Busausfall, Neustart und hängendem Bus), 119 Prüfpunkte für
    die Oberfläche (Darstellung, Barrierefreiheit, Lighthouse), 33 Sicherheitstests am Gerät, ein
    Zeitraffer-Simulator für Streckenpläne und Fehlertests am echten Band mit Person.

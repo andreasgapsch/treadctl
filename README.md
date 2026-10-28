@@ -155,7 +155,7 @@ agent (Claude Code) built it within a few days, from reverse engineering to a te
    scores are honest: one round dropped to 6.5 because it found a critical bus-failure bug. On top
    of that a dedicated stability review (restarts, Bluetooth, clock jumps, hanging UI) and
    performance measurements on the device (UI idle load down from 14 % to 3 %).
-5. **Automated evidence:** 93 scenario tests of the control logic against a simulated treadmill
+5. **Automated evidence:** 97 scenario tests of the control logic against a simulated treadmill
    (including the real main loop through bus failures, restarts and a hanging bus), 119 UI audit
    checks (rendering, accessibility, Lighthouse), 33 security tests on the device, a time-lapse
    simulator for route plans, and fault tests on the real belt with a person present.

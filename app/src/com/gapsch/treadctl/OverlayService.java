@@ -255,8 +255,7 @@ public class OverlayService extends Service {
     String errKey() { return s == null ? "" : (s.optDouble("speed") < 0.3) + "/" + s.optInt("pulled"); }
     String lastErrKey = "";
     /** Apps mit eigener Anzeige von Tempo und Steigung: statt der Pille nur die schmale Seitenleiste (Zurueck, Musik, STOP). */
-    static final java.util.Set<String> OWN_DISPLAY = new java.util.HashSet<String>(java.util.Arrays.asList("com.kinomap.training", "com.zwift.zwiftgame"));
-    boolean ownDisplay() { return s != null && OWN_DISPLAY.contains(s.optString("top", "")) && pref("sideInApps", true); }
+    boolean ownDisplay() { return s != null && AppHygiene.ownDisplay(s.optString("top", "")) && pref("sideInApps", true); }
 
     String wantMode() {
         if (Core.clock() - lastOk > 3000) return "nodaemon";
@@ -265,6 +264,8 @@ public class OverlayService extends Service {
         if ("PAUSE".equals(st)) return "pause";
         // Apps mit eigener Anzeige: unsichtbar; von unten hochwischen zeigt die Seitenleiste, nach 8 s ohne Beruehrung wieder weg
         if (ownDisplay() && ("LAEUFT".equals(st) || "BEREIT".equals(st)) && (s == null || s.optInt("pulled") != 1)) {
+            // Countdown (Start aus der App oder ueber die Taste): Leiste mit STOP zeigen, bis 8 s nach dem Anlaufen
+            if (s != null && s.optInt("cd") > 0) { sideOpen = true; lastInteract = System.currentTimeMillis(); }
             if (sideOpen && System.currentTimeMillis() - lastInteract > 8000) sideOpen = false;
             return sideOpen ? "side" : "ghost";
         }
@@ -441,7 +442,7 @@ public class OverlayService extends Service {
                 pill.addView(pb("back", WHITE, new Runnable() { public void run() { openUi("/"); } }));
                 View mu = pb("music", WHITE, new Runnable() { public void run() { new Thread(new Runnable() { public void run() { try { Api.media(OverlayService.this, new JSONObject().put("a", "toggle")); } catch (Throwable e) {} } }).start(); } });
                 pill.addView(mu, lpWrap(0, dp(8), 0, 0));
-                if ("LAEUFT".equals(st())) pill.addView(sideStop(), lpWrap(0, dp(8), 0, 0));
+                if ("LAEUFT".equals(st()) || (s != null && s.optInt("cd") > 0)) pill.addView(sideStop(), lpWrap(0, dp(8), 0, 0));
                 break; }
             case "col": {
                 LinearLayout.LayoutParams w = new LinearLayout.LayoutParams(dp(180), ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -953,7 +954,11 @@ public class OverlayService extends Service {
 
     void endRun() {
         if (simActive) return;   // Simulation: nie den echten Lauf beenden
-        new Thread(new Runnable() { public void run() { Api.cmd(OverlayService.this, "end"); ui.post(new Runnable() { public void run() { openUi("/summary/last"); } }); } }).start();
+        // in Apps mit eigener Anzeige in der App bleiben; die Zusammenfassung steht danach im Verlauf
+        final boolean stay = ownDisplay();
+        new Thread(new Runnable() { public void run() { Api.cmd(OverlayService.this, "end"); ui.post(new Runnable() { public void run() {
+            if (stay) { try { android.widget.Toast.makeText(OverlayService.this, "Lauf gespeichert, Zusammenfassung im Verlauf", android.widget.Toast.LENGTH_LONG).show(); } catch (Throwable e) {} }
+            else openUi("/summary/last"); } }); } }).start();
     }
 
     void step(final String what, final float d) {
