@@ -35,6 +35,7 @@ public class KeyReader {
     static boolean isOurs(int code) { return code == K_STOP || code == K_GO || code == K_SAFETY || (code >= K_INCL_UP && code <= K_SPEED_UP); }
 
     void loop(String dev) {
+        try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY); } catch (Throwable e) {}   // STOP-Taste auch unter Volllast sofort
         String arch = System.getProperty("os.arch", "");
         final int SZ = arch.contains("64") ? 24 : 16, T = SZ - 8;   // Versatz von type
         byte[] b = new byte[SZ];

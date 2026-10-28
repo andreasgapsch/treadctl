@@ -33,11 +33,16 @@ public class Token {
         }
     }
 
-    /** Liest das Token (immer frisch, der Dienst kann neu gestartet sein). */
-    static String read(Context c) {
+    static String readCache = ""; static long readMod = -1;
+    /** Token lesen; neu von der Platte nur, wenn sich die Datei geaendert hat (die Pille fragt bis zu 2.5-mal je Sekunde;
+     *  ein neu gestarteter Dienst schreibt die Datei neu, dann wird sie wieder gelesen). */
+    static synchronized String read(Context c) {
         try {
-            FileInputStream in = new FileInputStream(file(c)); byte[] b = new byte[128]; int n = in.read(b); in.close();
-            return n > 0 ? new String(b, 0, n, "UTF-8").trim() : "";
+            File f = file(c); long m = f.lastModified();
+            if (m == readMod && m != 0) return readCache;
+            FileInputStream in = new FileInputStream(f); byte[] b = new byte[128]; int n = in.read(b); in.close();
+            readCache = n > 0 ? new String(b, 0, n, "UTF-8").trim() : ""; readMod = m;
+            return readCache;
         } catch (Exception e) { return ""; }
     }
 

@@ -112,8 +112,10 @@ public class Core implements Runnable {
     }
 
     // ---------------- Hauptschleife ----------------
+    volatile Thread coreThread; long slowLogAt = 0, excLogAt = 0;
     public void run() {
-        lastTickAt = clock(); startWatch();
+        coreThread = Thread.currentThread();
+        lastTickAt = clock(); startWatch(); startTopWatch();
         // Erst einen sicheren Messwert haben (bis 10 s), dann ueber Lauf oder Pause entscheiden: ein einzelner Fehlversuch
         // (Herstellerdienst im selben Speicherengpass beendet) darf ein laufendes Band nicht als stehend werten.
         boolean readOk = false; long t0 = clock();
@@ -151,6 +153,8 @@ public class Core implements Runnable {
                 busFail = 0;
                 synchronized (lock) { tick(dt, now); }
             } catch (Throwable e) {
+                // Ausnahme hoechstens alle 30 s ins Logbuch: ein Programmfehler im Takt sieht sonst aus wie «Herstellerbus getrennt»
+                if (!"warte".equals(e.getMessage()) && !"kein Bus".equals(e.getMessage()) && clock() - excLogAt > 30000) { excLogAt = clock(); logBox("takt-ausnahme " + e); }
                 if (!"warte".equals(e.getMessage())) {   // Wartezeit zaehlt nicht als Fehltakt, sonst laeuft sie nie ab
                     busFail++;
                     if (busFail >= 3) {
@@ -162,6 +166,8 @@ public class Core implements Runnable {
                 }
             }
             lastTickAt = clock();
+            long took = lastTickAt - now;   // Dauer des Takts (Bus lesen und Logik): ueber 500 ms hoechstens alle 10 s melden
+            if (took > 500 && lastTickAt - slowLogAt > 10000) { slowLogAt = lastTickAt; logBox("takt langsam " + took + " ms"); }
             try { Thread.sleep(TICK); } catch (InterruptedException ie) { return; }
         }
     }
@@ -173,10 +179,17 @@ public class Core implements Runnable {
      *  beendet sich der Prozess, Android und die Pille starten ihn neu (Laufstand wird wiederhergestellt). */
     void startWatch() {
         Thread w = new Thread(new Runnable() { public void run() {
-            boolean warned = false;
+            try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_DISPLAY); } catch (Throwable e) {}
+            boolean warned = false, stackDone = false;
             while (alive) {
                 try { Thread.sleep(2000); } catch (InterruptedException e) { return; }
                 long idle = clock() - lastTickAt;
+                if (idle > 5000 && !stackDone) {   // Ursache festhalten: wo die Hauptschleife steht
+                    stackDone = true; Thread ct = coreThread; StringBuilder sb = new StringBuilder("wache: hauptschleife steht " + idle / 1000 + " s bei");
+                    if (ct != null) { StackTraceElement[] tr = ct.getStackTrace(); for (int i = 0; i < Math.min(12, tr.length); i++) sb.append(" | ").append(tr[i]); }
+                    logBox(sb.toString());
+                }
+                if (idle < 2000) stackDone = false;
                 if (idle > 10000 && !warned) {
                     warned = true; logBox("wache: hauptschleife steht seit " + idle / 1000 + " s");
                     new Thread(new Runnable() { public void run() {
@@ -198,17 +211,43 @@ public class Core implements Runnable {
     // ---------------- Herstellerleiste ----------------
     /** Blendet die JHT-Leiste ueber Fremd-Apps aus, damit diese den ganzen Bildschirm haben. */
     volatile String topPkg = ""; Boolean barShown = null; long barCheck = 0; volatile boolean hideBar = true;
+    /** Vordere App ueber einen eigenen Thread (Binder-Aufruf an system_server, der beim App-Wechsel lange dauern kann):
+     *  der Takt liest nur das Ergebnis. Dort auch die Systemeinstellungen (policyGuard). */
+    volatile String seenTop = ""; String hygTop = ""; long hygSince = 0; boolean hygPending = false;
+    void startTopWatch() {
+        Thread w = new Thread(new Runnable() { public void run() {
+            try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND); } catch (Throwable e) {}
+            android.app.ActivityManager am = (android.app.ActivityManager) ctx.getSystemService(Context.ACTIVITY_SERVICE);
+            while (alive) {
+                try {
+                    java.util.List<android.app.ActivityManager.RunningTaskInfo> t = am.getRunningTasks(1);
+                    if (t != null && !t.isEmpty() && t.get(0).topActivity != null) seenTop = t.get(0).topActivity.getPackageName();
+                    policyGuard(clock());
+                    hygiene();
+                } catch (Throwable e) {}
+                try { Thread.sleep(700); } catch (InterruptedException e) { return; }
+            }
+        } }, "vorne");
+        w.setDaemon(true); w.start();
+    }
+    /** Schwere App vorne: die anderen erst schliessen, wenn sie 2.5 s vorne bleibt (kurzer Blick in eine andere App beendet
+     *  nichts). Im Lauf und in der Pause bleiben Kinomap und Zwift offen (Training und Verbindung zum Band), danach zu. */
+    void hygiene() {
+        String pkg = seenTop; long now = clock();
+        if (!pkg.equals(hygTop)) { hygTop = pkg; hygSince = now; hygPending = AppHygiene.heavy(pkg); return; }
+        boolean run = LAEUFT.equals(st) || PAUSE.equals(st);
+        if (!hygPending && !run && hygKept && AppHygiene.heavy(pkg)) hygPending = true;   // Lauf vorbei: zurueckgehaltene Apps jetzt schliessen
+        if (!hygPending || now - hygSince < 2500) return;
+        hygPending = false; hygKept = run;
+        log("vorne " + pkg + ", andere schwere Apps zu" + (run ? " (Laufapps bleiben bis Laufende)" : ""), 0);
+        AppHygiene.closeOthers(ctx, pkg, run);
+    }
+    volatile boolean hygKept = false;
     void barGuard(long now) {
         if (now - barCheck < 700) return; barCheck = now;
         try {
-            android.app.ActivityManager am = (android.app.ActivityManager) ctx.getSystemService(Context.ACTIVITY_SERVICE);
-            java.util.List<android.app.ActivityManager.RunningTaskInfo> t = am.getRunningTasks(1);
-            if (t == null || t.isEmpty() || t.get(0).topActivity == null) return;
-            final String pkg = t.get(0).topActivity.getPackageName();
-            if (!pkg.equals(topPkg) && AppHygiene.heavy(pkg)) {   // eine Trainings- oder Video-App kommt nach vorne: die anderen schliessen
-                log("vorne " + pkg + ", andere schwere Apps zu", 0);
-                new Thread(new Runnable() { public void run() { AppHygiene.closeOthers(ctx, pkg); } }).start();
-            }
+            final String pkg = seenTop;
+            if (pkg.length() == 0) return;
             topPkg = pkg;
             boolean own = !hideBar || pkg.startsWith("com.jht") || pkg.startsWith("com.jhtp") || pkg.startsWith("com.cvte") || pkg.equals("com.android.launcher3");
             if (barShown == null || barShown != own) { bus.putBool("ACTION_STATUS_BAR_PANEL_BOOL", own); barShown = own; log("leiste " + (own ? "ein" : "aus") + " " + pkg, 0); }
@@ -230,7 +269,6 @@ public class Core implements Runnable {
 
     void tick(double dt, long now) throws Exception {
         barGuard(now);
-        policyGuard(now);
         // Sicherheitsschluessel
         if (pulled == 1 && !FEHLER.equals(st) && !BEREIT.equals(st)) { setError("Sicherheitsschlüssel gezogen"); }
         if (pulled == 1 && BEREIT.equals(st)) err = "Sicherheitsschlüssel gezogen"; else if (BEREIT.equals(st)) err = "";
@@ -474,7 +512,7 @@ public class Core implements Runnable {
         lastSummary = sum;
         try { java.nio.file.Files.write(new File(ctx.getFilesDir(), "letzter-lauf.json").toPath(), sum.toString().getBytes("UTF-8")); } catch (Throwable e) {}   // nicht nur im RAM
         resetRun(); st = BEREIT; lastStopAt = clock(); tIncl = 0f; tSpeed = HOLD_SPEED; prog = null; progType = null; segs = null; rp = null; endTimer = -1; note = ""; err = "";
-        try { snapFile().delete(); } catch (Throwable e) {}
+        io.execute(new Runnable() { public void run() { try { snapFile().delete(); } catch (Throwable e) {} } });
         log("ende " + from, 0);
         return sum;
     }
@@ -589,6 +627,8 @@ public class Core implements Runnable {
     }
     /** Befehl einer App (Steuerpunkt). Nie Start oder Weiter; STOP wirkt immer. Rueckgabe: FtmsData.RES_*. */
     int appCmd(int op, double v, String app) {
+        // Apps schicken STOP teils zehnmal je Sekunde: steht das Band, laeuft kein Countdown und ging STOP vor weniger als 1 s raus, genuegt das
+        if (op == FtmsData.OP_STOP && !LAEUFT.equals(st) && speed < 0.3f && hwStartAt == 0 && clock() - stopSentAt < 1000) return FtmsData.RES_OK;
         if (op == FtmsData.OP_STOP) { stopNow("app"); return FtmsData.RES_OK; }
         synchronized (lock) {
             // Start/Weiter: laeuft das Band schon, nur bestaetigen (Apps erwarten Erfolg); sonst nie, der Start bleibt an der Konsole
@@ -777,11 +817,16 @@ public class Core implements Runnable {
             JSONArray h = new JSONArray(); for (float[] q : hist) { JSONArray e = new JSONArray(); for (float v : q) e.put((double) v); h.put(e); } o.put("hist", h);
             if (prog != null) { o.put("prog", prog); o.put("progT", progT); o.put("segIdx", segIdx); o.put("inclIdx", inclIdx); o.put("offS", offS); o.put("offI", offI); o.put("progDone", progDone); }
             o.put("tSpeed", tSpeed); o.put("tIncl", tIncl);
-            File t = new File(ctx.getFilesDir(), "laufstand.tmp");
-            java.nio.file.Files.write(t.toPath(), o.toString().getBytes("UTF-8"));
-            t.renameTo(snapFile());   // atomar: nie eine halbe Datei
+            final byte[] data = o.toString().getBytes("UTF-8");
+            io.execute(new Runnable() { public void run() { try {   // Schreiben ausserhalb der Sperre: Flash darf den Takt nicht bremsen
+                File t = new File(ctx.getFilesDir(), "laufstand.tmp");
+                java.nio.file.Files.write(t.toPath(), data);
+                t.renameTo(snapFile());   // atomar: nie eine halbe Datei
+            } catch (Throwable e) {} } });
         } catch (Throwable e) {}
     }
+    /** Ein Schreib-Thread fuer den Laufstand: Schreiben und Loeschen bleiben in ihrer Reihenfolge. */
+    final java.util.concurrent.ExecutorService io = java.util.concurrent.Executors.newSingleThreadExecutor();
     /** Beim Start des Dienstes: Laufstand bis 15 min alt uebernehmen. Laeuft das Band, geht der Lauf weiter, sonst Pause mit Gehtempo. */
     boolean restore() {
         try {

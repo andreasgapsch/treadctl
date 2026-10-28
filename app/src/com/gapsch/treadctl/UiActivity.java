@@ -123,6 +123,10 @@ public class UiActivity extends Activity {
         h.removeCallbacks(health); h.postDelayed(health, 2000);
     }
     @Override protected void onPause() { super.onPause(); resumed = false; h.removeCallbacks(health); overlay("show"); if (wv != null) wv.onPause(); }
+    // Ganz verdeckt (andere App vorne): JavaScript-Zeitgeber anhalten, die Seite fragt dann nicht weiter alle 2 s ab;
+    // Lease und STOP-Wache uebernimmt die Pille. Zurueck: weiter, onResume setzt den Herzschlag zurueck.
+    @Override protected void onStop() { super.onStop(); if (wv != null) wv.pauseTimers(); }
+    @Override protected void onStart() { super.onStart(); if (wv != null) wv.resumeTimers(); }
     @Override protected void onDestroy() { h.removeCallbacks(health); if (wv != null) wv.destroy(); super.onDestroy(); }
     @Override public void onBackPressed() { if (wv != null) wv.evaluateJavascript("window.onNativeBack&&window.onNativeBack()", null); }
 

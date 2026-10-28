@@ -205,8 +205,13 @@ public class OverlayService extends Service {
                 k++;
                 // Takt: 400 ms im Gebrauch (Lauf, Pause, Fehler, Countdown, Band bewegt sich); in BEREIT 1 s, versteckt hinter der eigenen Oberflaeche 2 s
                 JSONObject cs = st != null ? st : s;
-                boolean busy = cs == null || !"BEREIT".equals(cs.optString("st")) || cs.optInt("cd") > 0 || cs.optDouble("speed") > 0.3 || cdTask != null || st0 != null;
-                try { Thread.sleep(busy ? 400 : hiddenByUi ? 2000 : 1000); } catch (InterruptedException e) { return; }
+                // 400 ms nur, wenn Bedienbares oder Sekunden zu sehen sind (aufgeklappt, Pause, START, Fehler, Countdown, Banner);
+                // unsichtbar, Menue/Musik, Minimalpille und Griff: 1 s; hinter der eigenen Oberflaeche 2 s (Lease und STOP-Wache reichen)
+                String md = mode;
+                boolean shown = "exp".equals(md) || "pause".equals(md) || "ready".equals(md) || "err".equals(md) || "key".equals(md) || "nodaemon".equals(md);
+                boolean fast = cs == null || cs.optInt("cd") > 0 || cdTask != null || bannerOn || st0 != null || (shown && !hiddenByUi)
+                    || (cs.optDouble("speed") > 0.3 && !"LAEUFT".equals(cs.optString("st")));   // Band laeuft aus oder unerwartet
+                try { Thread.sleep(fast ? 400 : hiddenByUi ? 2000 : 1000); } catch (InterruptedException e) { return; }
             }
         }}, "poll").start();
     }
@@ -309,16 +314,21 @@ public class OverlayService extends Service {
             sb.getClass().getMethod("disable", int.class).invoke(sb, f);
         } catch (Throwable e) { android.util.Log.w("TREADCTL", "statusbar disable: " + e); }
     }
+    long topMin = -1;
+    final SimpleDateFormat fmtDay = new SimpleDateFormat("EE", Locale.GERMAN), fmtDate = new SimpleDateFormat("dd.MM.", Locale.GERMAN), fmtTime = new SimpleDateFormat("HH:mm", Locale.GERMAN);
     void topBarUpdate() {
         if (topBar == null) return;
         String top = s == null ? "" : s.optString("top");
         boolean own = top.length() == 0 || top.startsWith("com.gapsch") || top.startsWith("com.jht") || top.startsWith("com.cvte") || top.equals("com.android.launcher3");
         boolean show = !own && !appFullscreen;
-        topBar.setVisibility(show ? View.VISIBLE : View.GONE);
+        int tv = show ? View.VISIBLE : View.GONE; if (topBar.getVisibility() != tv) topBar.setVisibility(tv);
         if (show) {
-            java.util.Date d = new java.util.Date();
-            topDate.setText(new SimpleDateFormat("EE", Locale.GERMAN).format(d).replace(".", "") + " " + new SimpleDateFormat("dd.MM.", Locale.GERMAN).format(d));
-            topTime.setText(new SimpleDateFormat("HH:mm", Locale.GERMAN).format(d));
+            long min = System.currentTimeMillis() / 60000;   // Datum und Uhr nur bei neuer Minute (sonst Neuaufbau der ganzen Zeile je Abfrage)
+            if (min != topMin || topDate.getText().length() == 0) {
+                topMin = min; java.util.Date d = new java.util.Date();
+                setTxt(topDate, fmtDay.format(d).replace(".", "") + " " + fmtDate.format(d));
+                setTxt(topTime, fmtTime.format(d));
+            }
         }
     }
 
@@ -724,7 +734,7 @@ public class OverlayService extends Service {
         boolean dev = run && Math.abs(ist - soll) > 0.2;
         if (!dev) t[4].setTag(null); else if (since == null) { t[4].setTag(now); since = now; }
         boolean show = dev && now - since >= 2000;
-        t[4].setText("Ist " + f1(ist)); t[4].setVisibility(show ? View.VISIBLE : View.INVISIBLE);
+        setTxt(t[4], "Ist " + f1(ist)); int vis = show ? View.VISIBLE : View.INVISIBLE; if (t[4].getVisibility() != vis) t[4].setVisibility(vis);
     }
 
     void noteCheck() {

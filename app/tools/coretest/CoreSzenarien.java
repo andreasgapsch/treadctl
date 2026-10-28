@@ -379,6 +379,21 @@ public class CoreSzenarien {
             CoreSzenarien q = new CoreSzenarien(); q.run(0.4); q.c.topPkg = "com.kinomap.training";
             t("Ohne erlaubte App-Steuerung kein Start", q.c.appCmd(FtmsData.OP_START, Double.NaN, "App") == FtmsData.RES_NOT_PERMITTED && q.c.hwStartAt == 0, "");
         }
+        { // 32 Apps schliessen: erst nach 2.5 s vorne, im Lauf bleiben Kinomap und Zwift offen, nach dem Lauf zu
+            CoreSzenarien s = new CoreSzenarien(); s.run(0.4);
+            java.util.List<String> R = android.app.ActivityManager.running, S = android.app.ActivityManager.stopped; R.clear(); S.clear();
+            R.add("com.kinomap.training"); R.add("org.jellyfin.mobile");
+            s.c.seenTop = "com.zwift.zwiftgame"; s.c.hygiene();
+            boolean wait = S.isEmpty();
+            s.c.hygSince -= 3000; s.c.hygiene();
+            t("Schwere App 2.5 s vorne: die anderen schliessen, vorher nicht", wait && S.contains("com.kinomap.training") && S.contains("org.jellyfin.mobile"), S.toString());
+            S.clear(); R.add("com.zwift.zwiftgame"); s.startRun(); s.run(20);
+            s.c.seenTop = "app.revanced.android.youtube"; s.c.hygiene(); s.c.hygSince -= 3000; s.c.hygiene();
+            t("Im Lauf bleibt Zwift offen, wenn YouTube nach vorne kommt", S.isEmpty() && "LAEUFT".equals(s.c.st), S.toString());
+            s.cmd("{\"c\":\"end\"}"); s.run(1); s.c.hygiene();
+            t("Nach dem Lauf wird Zwift geschlossen", S.contains("com.zwift.zwiftgame"), S.toString());
+            R.clear(); S.clear();
+        }
         { // 31 Geraetetasten in Kinomap: STOP an der Konsole gilt, auch wenn die App gleich wieder START schickt (Zeitsprung ueber consoleStopAt, clock() ist echte Zeit)
             CoreSzenarien s = new CoreSzenarien(); s.run(0.4); s.c.appCtl = true; s.c.topPkg = "com.kinomap.training";
             s.c.appCmd(FtmsData.OP_START, Double.NaN, "App"); s.run(20);

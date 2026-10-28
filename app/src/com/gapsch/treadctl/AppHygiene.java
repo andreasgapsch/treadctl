@@ -31,14 +31,16 @@ public class AppHygiene {
     static boolean ownDisplay(String pkg) { for (String p : OWN_DISPLAY) if (p.equals(pkg)) return true; return false; }
     static boolean heavy(String pkg) { for (String p : HEAVY) if (p.equals(pkg)) return true; return false; }
     /** Alle anderen schweren Apps beenden (force-stop, Plattform-App), die eben gestartete bleibt. */
-    static void closeOthers(Context c, String keep) {
+    static void closeOthers(Context c, String keep) { closeOthers(c, keep, false); }
+    /** spareOwn: Kinomap und Zwift offen lassen (laufendes Training mit Verbindung zum Band). */
+    static void closeOthers(Context c, String keep, boolean spareOwn) {
         try {
             ActivityManager am = (ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE);
             java.util.Set<String> running = new java.util.HashSet<String>();
             java.util.List<ActivityManager.RunningAppProcessInfo> ps = am.getRunningAppProcesses();
             if (ps != null) for (ActivityManager.RunningAppProcessInfo i : ps) if (i.pkgList != null) for (String q : i.pkgList) running.add(q);
             java.lang.reflect.Method stop = ActivityManager.class.getMethod("forceStopPackage", String.class);
-            for (String p : HEAVY) if (!p.equals(keep) && running.contains(p)) { stop.invoke(am, p); android.util.Log.i("TREADCTL", "app geschlossen: " + p + " (vorne " + keep + ")"); }
+            for (String p : HEAVY) if (!p.equals(keep) && running.contains(p) && !(spareOwn && ownDisplay(p))) { stop.invoke(am, p); android.util.Log.i("TREADCTL", "app geschlossen: " + p + " (vorne " + keep + ")"); }
         } catch (Throwable e) { android.util.Log.w("TREADCTL", "apps schliessen: " + e); }
     }
 
