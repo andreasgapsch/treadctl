@@ -179,7 +179,7 @@ public class OverlayService extends Service {
     /** 1x1-Fenster, das jede Beruehrung auf dem Bildschirm mitbekommt (fuer den Bildschirmschoner). */
     void buildWatcher() {
         watcher = new View(this);
-        watcher.setOnTouchListener(new View.OnTouchListener() { public boolean onTouch(View v, MotionEvent e) { lastTouch = System.currentTimeMillis(); return false; } });
+        watcher.setOnTouchListener(new View.OnTouchListener() { public boolean onTouch(View v, MotionEvent e) { lastTouch = System.currentTimeMillis(); keepAwake(); return false; } });
         WindowManager.LayoutParams w = new WindowManager.LayoutParams(1, 1, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL | WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT);
@@ -831,7 +831,13 @@ public class OverlayService extends Service {
     void press(View v, boolean down) { v.animate().scaleX(down ? .94f : 1f).scaleY(down ? .94f : 1f).alpha(down ? .8f : 1f).setDuration(50).start(); }
 
     // ---------------- Aktionen ----------------
-    void touch() { lastTouch = lastInteract = System.currentTimeMillis(); }
+    void touch() { lastTouch = lastInteract = System.currentTimeMillis(); keepAwake(); }
+    /** Standby-Zeitgeber der Herstellersoftware neu starten (hoechstens alle 20 s, der Dienst drosselt ebenfalls). */
+    long awakeSent;
+    void keepAwake() {
+        long t = System.currentTimeMillis(); if (t - awakeSent < 20000) return; awakeSent = t;
+        new Thread(new Runnable() { public void run() { try { Api.cmd(OverlayService.this, new JSONObject().put("c", "touch")); } catch (Throwable e) {} } }).start();
+    }
 
     void expand() { touch(); expanded = true; update(); }
 
@@ -1047,6 +1053,7 @@ public class OverlayService extends Service {
             int min = 5; try { min = Integer.parseInt(prefs.getString("saverMin", "5")); } catch (Exception e) {}
             boolean idle = System.currentTimeMillis() - lastTouch > min * 60000L;
             boolean media = ((AudioManager) getSystemService(AUDIO_SERVICE)).isMusicActive();
+            if (media) keepAwake();   // Film oder Musik laeuft: Konsole nicht in den Standby
             boolean ownScreen = s == null || s.optBoolean("bar", true);
             if (saver == null && idle && !media && ownScreen && "BEREIT".equals(st()) && pref("saver", true)) showSaver();
             if (saver != null) moveSaver();

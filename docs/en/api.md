@@ -131,6 +131,15 @@ At run time speed inputs change `offS` (until back to plan), incline inputs `off
 - **Fan protocol** (Nordic UART 6e400001): app to fan `55 A5 len id seq data chkH chkL`, chk = ~sum from len; every fan message `AA 5A …` is acknowledged with id 255 and its seq. id 1 level (0 = lowest speed, not off), id 5 mode (0 manual), id 19 `[awake 1 | sleep 0, smart start]`. Never touch the DFU service FE59; the manufacturer app must not be connected at the same time.
 - **BLE tool** (only for integrating new devices): `GET /api/probe` and `POST /api/probe/cmd` (token) for scan, connect, read, notify, write.
 
+## Screen and standby
+
+- Screen saver (UI and pill): minutes in the "Profil und Bildschirm" dialog (1 to 30 min or off), stored as `saverMin`
+  in the UI and pill preferences (`saver` off at 0).
+- Standby of the manufacturer software (ERP): command `standby {i}` writes `DATA_ERP_MODE_INDEX_INT` (0 = 30 min,
+  1 = 15 min, 2 = 10 min, factory, 3 = off); state `erp` (read every 30 s, -1 unknown). Its timer restarts on touch,
+  hardware keys and a moving belt. The pill reports touches in all apps and active playback as command `touch` (at most
+  every 20 s); the service then sends `EVENT_TOUCH`. So the console only sleeps after real inactivity.
+
 ## Apps and watches (FTMS, footpod)
 
 The console appears over its own Bluetooth as a treadmill (FTMS 0x1826) and as a footpod (RSC 0x1814), named

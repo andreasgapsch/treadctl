@@ -365,6 +365,14 @@ public class CoreSzenarien {
             s.startRun(); s.run(20); s.c.manualAt = 0;
             t("App im Intervallprogramm gesperrt", s.c.appCmd(FtmsData.OP_SPEED, 12, "Zwift") == FtmsData.RES_NOT_PERMITTED, "Soll " + s.c.tSpeed);
         }
+        { // 29 Standby der Konsole (ERP) und Beruehrungsmeldung
+            CoreSzenarien s = new CoreSzenarien(); s.run(31);
+            t("Standby-Stufe der Konsole gelesen (Werk 10 min)", s.c.erpIdx == 2 && new JSONObject(s.c.stateJson(false)).optInt("erp") == 2, "" + s.c.erpIdx);
+            String r1 = s.cmd("{\"c\":\"standby\",\"i\":0}"), r2 = s.cmd("{\"c\":\"standby\",\"i\":7}");
+            t("Standby auf 30 min gesetzt, ungültige Stufe abgewiesen", r1.contains("true") && s.b.erp == 0 && r2.contains("Stufe"), r2);
+            s.cmd("{\"c\":\"touch\"}"); s.cmd("{\"c\":\"touch\"}");
+            t("Berührung setzt den Standby-Zeitgeber zurück, höchstens alle 20 s", s.b.touches == 1, "" + s.b.touches);
+        }
         { // 28 FTMS-Kodierung nach Spezifikation
             byte[] d = FtmsData.treadmill(10.0, 1.234, 2.5, 120, 150, true, 600);
             StringBuilder h = new StringBuilder(); for (byte x : d) h.append(String.format("%02x", x));

@@ -131,6 +131,15 @@ Laufzeit: Tempo-Eingaben ändern `offS` (bis «Zurück zum Plan»), Steigungs-Ei
 - **Ventilatorprotokoll** (Nordic UART 6e400001): App an Ventilator `55 A5 len id seq daten chkH chkL`, chk = ~Summe ab len; jede Meldung `AA 5A …` wird mit id 255 und ihrer seq quittiert. id 1 Stufe (0 = kleinste Drehzahl), id 5 Modus (0 manuell), id 19 `[wach 1 | schlafen 0, SmartStart]`. Den DFU-Dienst FE59 nie anfassen; die Hersteller-App darf nicht gleichzeitig verbunden sein.
 - **BLE-Werkzeug** (nur zum Einbinden neuer Geräte): `GET /api/probe` und `POST /api/probe/cmd` (Token) für Suche, Verbinden, Lesen, Melden, Schreiben.
 
+## Bildschirm und Standby
+
+- Bildschirmschoner (Oberfläche und Pille): Minuten im Dialog «Profil und Bildschirm» (1 bis 30 min oder aus), gespeichert
+  als `saverMin` in den Einstellungen der Oberfläche und der Pille (`saver` aus bei 0).
+- Standby der Herstellersoftware (ERP): Befehl `standby {i}` schreibt `DATA_ERP_MODE_INDEX_INT` (0 = 30 min, 1 = 15 min,
+  2 = 10 min, Werk, 3 = aus); Zustand `erp` (alle 30 s gelesen, -1 unbekannt). Ihr Zeitgeber läuft bei Berührung,
+  Gerätetasten und laufendem Band neu an. Die Pille meldet Berührungen in allen Apps und laufende Wiedergabe als
+  Befehl `touch` (höchstens alle 20 s), der Dienst sendet dann `EVENT_TOUCH`. So schläft die Konsole nur nach echter Ruhe.
+
 ## Apps und Uhren (FTMS, Laufsensor)
 
 Die Konsole erscheint über ihr eigenes Bluetooth als Laufband (FTMS 0x1826) und als Laufsensor (RSC 0x1814), Name

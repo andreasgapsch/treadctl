@@ -1154,6 +1154,17 @@ if (!ONLY.length) {
     const ok = !!c && c.t === 'Kinomap steuert' && c.al === 'Steuerung durch Kinomap beenden' && c.h >= 48 && cmds.includes('appRelease');
     return { ok, d: c ? `Chip «${c.t}» (${c.al}), Höhe ${c.h}; Befehle [${cmds.join(', ')}]` : 'kein Chip' };
   });
+  await flow('Profil und Bildschirm: Gewicht vorhanden, Bildschirmschoner-Minuten und Standby der Konsole (10/15/30 min, Aus) einstellbar, Dialog passt auf den Bildschirm', async p => {
+    await p.goto(BASE + '?demo=1&frozen=1#/'); await p.waitForTimeout(900);
+    await p.click('[data-g="profile"]'); await p.waitForTimeout(400);
+    const a = await p.evaluate(() => { const d = document.querySelector('.pdlg'), r = d.getBoundingClientRect();
+      return { fit: r.top >= 0 && r.bottom <= innerHeight, kg: !!d.querySelector('[data-k="kg"]'), sv: d.querySelector('[data-k="sv"]').textContent,
+        erp: Array.from(d.querySelectorAll('[data-erp]')).map(b => b.textContent + (b.classList.contains('on') ? '*' : '')).join(',') }; });
+    await p.click('[data-sv="1"]'); await p.click('[data-erp="0"]'); await p.click('[data-x="ok"]'); await p.waitForTimeout(300);
+    const b = await p.evaluate(() => ({ min: window.TX.prefs().saverMin, cmd: window.__txCmdLog.filter(x => x.c === 'standby').map(x => JSON.stringify(x)).join(), erp: window.TX.api.state.erp }));
+    const ok = a.fit && a.kg && a.sv === '5 min' && a.erp === '10 min*,15 min,30 min,Aus' && b.min === 10 && /"i":0/.test(b.cmd) && b.erp === 0;
+    return { ok, d: `passt ${a.fit}, Gewicht ${a.kg}, Bildschirmschoner «${a.sv}», Standby [${a.erp}]; gespeichert ${b.min} min, Befehl ${b.cmd}, Zustand ${b.erp}` };
+  });
   await flow('Gesperrter Schalter «Apps dürfen Tempo und Steigung steuern»: grau, Schloss, Grund «zuerst Daten an Apps einschalten», nimmt nichts an', async p => {
     await p.goto(BASE + '?demo=1&frozen=1#/apps'); await p.waitForTimeout(900);
     const r = () => p.evaluate(() => { const b = document.querySelector('[data-f="ctl"]'), lk = b.querySelector('svg'), ref = document.createElement('div'); ref.innerHTML = window.TX.I('lock');

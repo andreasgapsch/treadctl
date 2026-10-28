@@ -72,6 +72,11 @@ public class Core implements Runnable {
     long hwStartAt = 0; boolean hwResume; int inclDir, inclPulses; int inclIdx = -1; boolean routeFinish;
     // Steuerung durch Apps (FTMS, DIRCON): aus, bis der Laeufer sie erlaubt; nie Start, STOP immer
     static final long APP_MANUAL_MS = 30000, APP_RATE_MS = 2000;
+    // Standby der Herstellersoftware (ERP): Index 0 = 30 min, 1 = 15 min, 2 = 10 min (Werk), 3 = aus. Ihr Zeitgeber
+    // laeuft bei Beruehrung, Geraetetasten und laufendem Band neu an; Beruehrungen in unserer Oberflaeche und in Apps
+    // meldet die Pille als EVENT_TOUCH, damit die Konsole nur nach echter Ruhe schlaeft.
+    static final String ERP_KEY = "DATA_ERP_MODE_INDEX_INT";
+    volatile int erpIdx = -1; long erpAt = 0, touchAt = 0;
     volatile boolean appCtl = false; volatile float appMaxS = 14f, appMaxI = 10f;
     volatile String appName = ""; volatile long appAt = 0; long appCmdAt = 0; boolean appBlocked = false;
     double appPendS = -1, appPendI = -1;
@@ -290,6 +295,7 @@ public class Core implements Runnable {
             if (holdLeft <= 0) { holdLeft = 0; double t = holdTarget; holdTarget = -1; note = ""; if (t > HOLD_SPEED + 0.05) rampSpeed(t, "programm"); }
         }
         if (LAEUFT.equals(st) && rampTarget > 0 && holdLeft <= 0) { rampLeft -= dt; if (rampLeft <= 0) rampSpeed(rampTarget, rampFrom); }
+        if (now - erpAt > 30000) { erpAt = now; try { erpIdx = bus.getInt(ERP_KEY); } catch (Throwable e) {} }
         if ((appPendS >= 0 || appPendI >= 0) && now - appCmdAt >= APP_RATE_MS) {
             if (appAllowed() == 0) appApply(); else { appPendS = -1; appPendI = -1; }
         }
@@ -470,8 +476,8 @@ public class Core implements Runnable {
         if ("stop".equals(c)) { armAt = 0; hwStartAt = 0; return stopNow(from); }
         synchronized (lock) {
             try {
-                pauseIdle = 0;   // jede Eingabe verlaengert die Pause
-                log("cmd " + c + " " + j.optString("v", j.optString("d", "")), speed);
+                if (!"touch".equals(c)) pauseIdle = 0;   // jede Eingabe verlaengert die Pause
+                if (!"touch".equals(c)) log("cmd " + c + " " + j.optString("v", j.optString("d", "")), speed);
                 if ("arm".equals(c)) { armAt = clock(); log("arm", tSpeed); return ok(); }
                 if ("start".equals(c)) {
                     if (!BEREIT.equals(st)) return err("nicht bereit");
@@ -542,6 +548,15 @@ public class Core implements Runnable {
                     offS = Math.max(-15, Math.min(15, j.optDouble("s", 0))); offI = Math.max(-15, Math.min(15, j.optDouble("i", 0)));
                     int i = Math.max(0, segIdx), ii = Math.max(0, inclIdx);
                     rampSpeed(rp.sp[i] + offS, from); applyIncl((float) (rp.in[ii] + offI), from); return ok();
+                }
+                if ("standby".equals(c)) {
+                    int i = j.optInt("i", -1);
+                    if (i < 0 || i > 3) return err("Stufe 0 bis 3");
+                    bus.putInt(ERP_KEY, i); erpIdx = i; erpAt = clock(); log("standby " + i, 0); return ok();
+                }
+                if ("touch".equals(c)) {   // Beruehrung oder Wiedergabe: Standby-Zeitgeber der Herstellersoftware neu starten
+                    if (clock() - touchAt > 20000) { touchAt = clock(); bus.sendEvent("EVENT_TOUCH"); }
+                    return ok();
                 }
                 if ("appRelease".equals(c)) { appBlocked = true; appPendS = appPendI = -1; log("app-freigabe", tSpeed); return ok(); }   // «Zurück an Konsole»
                 if ("hideBar".equals(c)) { hideBar = j.optBoolean("on", true); barShown = null; return ok(); }
@@ -802,6 +817,7 @@ public class Core implements Runnable {
             if (fanKnown) o.put("fan", new JSONObject().put("l", Math.max(0, fanLevel)).put("a", fanAuto).put("c", fanLevel >= 0));   // Platz in der Pille bleibt, solange ein Ventilator gespeichert ist
             if (holdLeft > 0) { o.put("hold", Math.ceil(holdLeft)); o.put("holdTo", r1((float) holdTarget)); }
             if (appCtl) o.put("appCtl", true);
+            o.put("erp", erpIdx);
             if (LAEUFT.equals(st) && !appBlocked && appAt > 0 && clock() - appAt < 15000) o.put("app", appName);   // App steuert gerade
             if (hwStartAt > 0) o.put("cd", Math.max(1, (int) Math.ceil((hwStartAt - clock()) / 1000.0))); o.put("top", topPkg); o.put("bar", barShown == null || barShown);
             if (prog != null) o.put("prog", progJson(withHist)); else o.put("prog", JSONObject.NULL);

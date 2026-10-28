@@ -74,7 +74,7 @@
 
   /* ---------- Einstellungen ---------- */
   // hideBar: Konsole blendet die Herstellerleiste ueber Fremd-Apps aus (frueher Schluessel insetApps, gleicher Schalter)
-  var PREF_DEF = { pill: true, pillGraph: true, autoCollapse: true, hideBar: true, range: 20 };
+  var PREF_DEF = { pill: true, pillGraph: true, autoCollapse: true, hideBar: true, range: 20, saverMin: 5 };
   TX.prefs = function () {
     var p = load(K.prefs, {}) || {}, o = {};
     if (!('hideBar' in p) && ('insetApps' in p)) p.hideBar = !!p.insetApps;

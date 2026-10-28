@@ -17,7 +17,7 @@ public class DataBus {
 
     // Transaktionscodes (aus IGlobalSettings.Stub; ungenutzt: 6 GET_STRING, 9 PUT_INT)
     static final int PUT_FLOAT = 3,  GET_FLOAT = 4;
-    static final int GET_INT = 10;
+    static final int PUT_INT = 9, GET_INT = 10;
     static final int PUT_BOOL = 11,  GET_BOOL = 12;
     static final int SEND_EVENT = 20; // sendEventNotification(String)
 
@@ -68,6 +68,14 @@ public class DataBus {
         try {
             d.writeInterfaceToken(DESC); d.writeString(key); d.writeFloat(v);
             mSvc.transact(PUT_FLOAT, d, r, 0); r.readException();
+        } finally { d.recycle(); r.recycle(); }
+    }
+
+    public void putInt(String key, int v) throws RemoteException {
+        Parcel d = Parcel.obtain(), r = Parcel.obtain();
+        try {
+            d.writeInterfaceToken(DESC); d.writeString(key); d.writeInt(v);
+            mSvc.transact(PUT_INT, d, r, 0); r.readException();
         } finally { d.recycle(); r.recycle(); }
     }
 

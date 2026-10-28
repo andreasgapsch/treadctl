@@ -335,9 +335,10 @@
     if (k !== beepKey) { beepKey = k; TX.beep(p.segLeft === 1 ? 1320 : 880); }
   }
 
-  /* ---------- Bildschirmschoner (BEREIT, 5 min ohne Beruehrung) ---------- */
+  /* ---------- Bildschirmschoner (BEREIT, einstellbar, Werk 5 min ohne Beruehrung) ---------- */
   var saver = document.getElementById('saver'), blk = saver.querySelector('.blk'), saverOn = false, lastTouch = Date.now(), swallow = 0, moveT = 0, clockT = 0;
-  var SAVER_MS = /[?&]saver=1/.test(location.search) && api.demo ? 2000 : 5 * 60 * 1000;
+  // Minuten aus dem Profil-Dialog (0 = aus); Demo-Pruefung mit ?saver=1 nach 2 s
+  function saverMs() { if (/[?&]saver=1/.test(location.search) && api.demo) return 2000; var m = +TX.prefs().saverMin; return m > 0 ? m * 60000 : Infinity; }
   function clock() {
     var d = new Date();
     blk.querySelector('.tm').textContent = TX.pad(d.getHours()) + ':' + TX.pad(d.getMinutes());
@@ -364,7 +365,7 @@
   document.addEventListener('keydown', function () { lastTouch = Date.now(); if (saverOn) saverStop(); }, true);
   setInterval(function () {
     var st = api.state, ok = st && st.st === 'BEREIT' && !api.offline;
-    if (!saverOn && ok && Date.now() - lastTouch >= SAVER_MS) saverStart();
+    if (!saverOn && ok && Date.now() - lastTouch >= saverMs()) saverStart();
     if (saverOn && !ok) saverStop();
   }, 1000);
 
@@ -412,30 +413,52 @@
     sbar.querySelector('.sbr').style.transform = x ? 'translateX(' + -x + 'px)' : '';
   }, 3 * 60 * 1000);
 
-  /* ---------- Profil (Name, HFmax) ---------- */
+  /* ---------- Profil (Name, HFmax, Gewicht) und Bildschirm (Bildschirmschoner, Standby der Konsole) ---------- */
+  var SAVER_OPT = [1, 2, 3, 5, 10, 15, 20, 30, 0];   // Minuten, 0 = aus
+  // Standby der Herstellersoftware: nur diese Stufen; Index wie dort (0 = 30 min, 1 = 15 min, 2 = 10 min, 3 = aus)
+  var ERP_OPT = [[2, '10 min'], [1, '15 min'], [0, '30 min'], [3, 'Aus']];
+  function saverTxt(m) { return m > 0 ? m + ' min' : 'Aus'; }
   function profileDlg() {
     var pr = TX.profile(), hf = pr.hf, kg = pr.kg, st0 = api.state;
+    var sv = +TX.prefs().saverMin, svI = Math.max(0, SAVER_OPT.indexOf(sv)), erp0 = st0 && st0.erp >= 0 ? st0.erp : -1, erp = erp0;
     var m = document.createElement('div'); m.className = 'modal blur'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-labelledby', 'prh');
-    m.innerHTML = '<div class="dlg pdlg"><h2 id="prh">Profil</h2><div class="mut" style="margin-top:4px">Die Pulszonen werden aus der maximalen Herzfrequenz berechnet.</div>' +
+    // zwei Spalten: links Profil (Name, HFmax, Gewicht, Zonen), rechts Bildschirm (Bildschirmschoner, Standby der Konsole)
+    m.innerHTML = '<div class="dlg pdlg wide"><h2 id="prh">Profil und Bildschirm</h2><div class="pcols"><div class="pcol">' +
+      '<div class="mut" style="margin-top:4px">Die Pulszonen werden aus der maximalen Herzfrequenz berechnet.</div>' +
       '<div class="frow"><label for="pname">Name</label><input id="pname" maxlength="30" value="' + esc(pr.name) + '" autocomplete="off"></div>' +
       '<div class="frow"><span class="lab" style="width:120px">HFmax</span><div class="stp big"><button data-h="-1" aria-label="HFmax verringern">' + I('minus') + '</button><div class="val"><div class="lab">bpm</div><b data-k="hf">' + hf + '</b></div>' +
       '<button data-h="1" aria-label="HFmax erhöhen">' + I('plus') + '</button></div></div>' +
       '<div class="frow"><span class="lab" style="width:120px">Gewicht</span><div class="stp big"><button data-w="-1" aria-label="Gewicht verringern">' + I('minus') + '</button><div class="val"><div class="lab">kg</div><b data-k="kg">' + kg + '</b></div>' +
-      '<button data-w="1" aria-label="Gewicht erhöhen">' + I('plus') + '</button></div><div class="mut pkg">für die Kalorienberechnung' + (st0 && st0.weight ? '<br>im Dienst ' + Math.round(st0.weight) + ' kg' : '') + '</div></div><div class="zpre" data-k="zp"></div>' +
+      '<button data-w="1" aria-label="Gewicht erhöhen">' + I('plus') + '</button></div><div class="mut pkg">für die Kalorienberechnung' + (st0 && st0.weight ? '<br>im Dienst ' + Math.round(st0.weight) + ' kg' : '') + '</div></div>' +
+      '<div class="zpre" data-k="zp"></div></div><div class="pcol pscr">' +
+      '<div class="frow"><span class="lab">Bildschirmschoner</span><div class="stp big"><button data-sv="-1" aria-label="Bildschirmschoner früher">' + I('minus') + '</button><div class="val"><div class="lab">nach</div><b data-k="sv"></b></div>' +
+      '<button data-sv="1" aria-label="Bildschirmschoner später">' + I('plus') + '</button></div><div class="mut pkg">Uhr auf Schwarz, nur im Stand und ohne Wiedergabe.</div></div>' +
+      '<div class="frow"><span class="lab">Standby der Konsole</span><div class="seg" role="radiogroup" aria-label="Standby der Konsole">' +
+      ERP_OPT.map(function (o) { return '<button role="radio" data-erp="' + o[0] + '">' + o[1] + '</button>'; }).join('') + '</div>' +
+      '<div class="mut pkg">' + (erp0 < 0 ? 'Stand der Konsole unbekannt. ' : '') + 'Die Konsole schläft nach so langer Ruhe ohne Berührung, Band und Wiedergabe; Aufwecken mit Berührung oder Taste.</div></div>' +
+      '</div></div>' +
       '<div class="acts"><a class="btn ghost" href="#/geraete" data-x="dev">' + I('heart') + ' Geräte koppeln</a><span style="flex:1"></span><button class="btn ghost" data-x="no">Abbrechen</button><button class="btn go" data-x="ok">' + I('check') + ' Speichern</button></div></div>';
     function zp() { m.querySelector('[data-k="zp"]').innerHTML = TX.zones(hf).map(function (z) { return '<div><b style="color:' + TX.ZT[z.z] + '">Z' + z.z + '</b>' + z.txt + '</div>'; }).join(''); m.querySelector('[data-k="hf"]').textContent = hf; m.querySelector('[data-k="kg"]').textContent = kg; }
     TX.$$('[data-h]', m).forEach(function (b) { TX.holdRepeat(b, function () { hf = TX.clamp(hf + +b.getAttribute('data-h'), 120, 230); zp(); }); });
     TX.$$('[data-w]', m).forEach(function (b) { TX.holdRepeat(b, function (n) { kg = TX.clamp(kg + +b.getAttribute('data-w') * (n > 8 ? 5 : 1), 35, 200); zp(); }); });
+    function scr() {
+      m.querySelector('[data-k="sv"]').textContent = saverTxt(SAVER_OPT[svI]);
+      TX.$$('[data-erp]', m).forEach(function (b) { var on = +b.getAttribute('data-erp') === erp; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+    }
+    TX.$$('[data-sv]', m).forEach(function (b) { b.addEventListener('click', function () { svI = TX.clamp(svI + +b.getAttribute('data-sv'), 0, SAVER_OPT.length - 1); scr(); }); });
+    TX.$$('[data-erp]', m).forEach(function (b) { b.addEventListener('click', function () { erp = +b.getAttribute('data-erp'); scr(); }); });
     m.addEventListener('click', function (e) {
       var b = e.target.closest('[data-x]'); if (!b) return;
       if (b.getAttribute('data-x') === 'ok') {
         TX.saveProfile({ name: (m.querySelector('#pname').value || '').trim() || pr.name, hf: hf, kg: kg });
+        var svm = SAVER_OPT[svI]; TX.setPref('saverMin', svm); TX.native.setPref('saverMin', String(svm)); TX.native.setPref('saver', String(svm > 0));
+        if (erp >= 0 && erp !== erp0) TX.api.cmd('standby', { i: erp }).then(function (r) { if (!r || !r.ok) TX.toast('Standby nicht gesetzt: ' + (r && r.error || 'Dienst nicht erreicht')); });
         TX.sendProfile().then(function (r) { TX.toast(r && r.ok ? 'Profil gespeichert' : 'Profil gespeichert, Dienst nicht erreicht'); });
         route();
       }
       m.parentNode.removeChild(m);
     });
-    document.body.appendChild(m); zp(); TX.fixGap(m);
+    document.body.appendChild(m); zp(); scr(); TX.fixGap(m);
   }
 
   /* ---------- Pulsmenue: Ausklappmenue unter dem Pulschip im Kopf ----------

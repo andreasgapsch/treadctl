@@ -21,7 +21,9 @@ public class DataBus {
         if (k.equals(Core.D_TGT_S)) return running ? target : 0f;
         return 0f;
     }
-    public int getInt(String k) throws Exception { if (dead || !conn) throw new Exception("tot"); return hr; }
+    public int erp = 2; public int touches = 0;   // Standby der Herstellersoftware (Werk: 10 min), Beruehrungsmeldungen
+    public int getInt(String k) throws Exception { if (dead || !conn) throw new Exception("tot"); return "DATA_ERP_MODE_INDEX_INT".equals(k) ? erp : hr; }
+    public void putInt(String k, int v) throws Exception { if (dead || !conn) throw new Exception("tot"); if ("DATA_ERP_MODE_INDEX_INT".equals(k)) erp = v; }
     public int getBool(String k) throws Exception {
         if (dead || !conn) throw new Exception("tot");
         if (k.equals(Core.D_PULLED)) return pulled ? 1 : 0;
@@ -35,6 +37,7 @@ public class DataBus {
     }
     public void putBool(String k, boolean v) {}
     public void sendEvent(String k) throws Exception {
+        if ("EVENT_TOUCH".equals(k)) { touches++; return; }
         if (dead || !conn) throw new Exception("tot");
         if (k.equals(Core.A_START)) { running = true; starts++; }
         if (k.equals(Core.A_STOP)) { running = false; stops++; }
