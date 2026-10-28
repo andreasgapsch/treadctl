@@ -576,7 +576,7 @@
   };
 
   /* Laufband als Bluetooth-Geraet fuer Apps und Uhren (GET/POST /api/ftms): FTMS und Laufsensor; Demo: aus */
-  var ftd = { ok: true, on: false, ctl: false, name: 'Tread Control', maxS: 14, maxI: 10, state: 'aus', advertising: false, clients: [] };
+  var ftd = { ok: true, on: false, ctl: false, dircon: false, lan: false, name: 'Tread Control', maxS: 14, maxI: 10, state: 'aus', dirconState: 'aus', advertising: false, clients: [] };
   api.ftms = {
     status: function () {
       if (demo) return Promise.resolve(JSON.parse(JSON.stringify(ftd)));

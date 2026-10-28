@@ -11,6 +11,7 @@ t "Steuern ohne Token" "$(code -X POST $U/cmd -d '{"c":"speed","v":5}')" 403
 t "Steuern mit falschem Token" "$(code -X POST -H 'X-Token: falsch' $U/cmd -d '{"c":"speed","v":5}')" 403
 t "FTMS-Einstellungen ohne Token" "$(code -X POST $U/ftms -d '{"ctl":true}')" 403
 t "FTMS-Einstellungen mit fremdem Origin" "$(code -X POST -H "X-Token: $TK" -H 'Origin: http://boese.example' $U/ftms -d '{"ctl":true}')" 403
+t "DIRCON standardmässig nur für die Konsole (lan aus)" "$(curl -s -H 'Host: 127.0.0.1:8765' $U/ftms | grep -o '"lan":[a-z]*')" '"lan":false'
 t "Steuern per GET" "$(code "$U/cmd?c=start")" 404
 t "Alte Route /api/start" "$(code $U/start)" 404
 t "Fremder Host (DNS-Rebinding)" "$(code -H 'Host: boese.example:8765' $U/state)" 403

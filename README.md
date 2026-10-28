@@ -50,7 +50,7 @@ under control on top of every app.
 |---|---|
 | **Watch series or films** in Jellyfin, YouTube or SmartTube while running an interval plan | The control pill floats at the bottom of every app: incline, STOP, speed, live chart. 10 s before every change a banner announces the new speed and incline, with tones at 3, 2, 1. Swipe down to hide it, swipe up to bring it back. |
 | **Run to music or an audiobook** (YouTube Music, Audiobookshelf) | The mini player in the header shows title and cover, controls play/pause and volume, switches between music and audiobook, and routes the sound to the console or a Bluetooth speaker. |
-| **Follow video routes** in Kinomap or Zwift | On a tablet, phone or PC the apps see the console as a Bluetooth treadmill (FTMS) and read speed, incline and distance. If you allow it, apps may set speed and incline within your limits; start stays on the console, STOP always works. Apps on the console itself need DIRCON, see the roadmap. |
+| **Follow video routes** in Kinomap or Zwift | The apps see the console as a smart treadmill (FTMS) and read speed, incline and distance: on a tablet, phone or PC over Bluetooth, on the console itself over Wi-Fi (DIRCON). If you allow it, apps may set speed and incline within your limits; start stays on the console, STOP always works. |
 | **Run with a Garmin watch** | The console also appears as a footpod: pace and distance on the watch come from the belt instead of the wrist estimate. |
 | **Train by heart rate** with a chest strap or watch | Bluetooth heart-rate straps (e.g. Garmin HRM 600) and watches that broadcast heart rate feed the zone training, the step test and the fan. |
 | **Keep cool automatically** | A CYCPLUS F1 smart fan follows speed, incline and heart rate; manual override from the pill. |
@@ -157,7 +157,7 @@ agent (Claude Code) built it within a few days, from reverse engineering to a te
    performance measurements on the device (UI idle load down from 14 % to 3 %).
 5. **Automated evidence:** 86 scenario tests of the control logic against a simulated treadmill
    (including the real main loop through bus failures, restarts and a hanging bus), 118 UI audit
-   checks (rendering, accessibility, Lighthouse), 32 security tests on the device, a time-lapse
+   checks (rendering, accessibility, Lighthouse), 33 security tests on the device, a time-lapse
    simulator for route plans, and fault tests on the real belt with a person present.
 
 Humans decide, AI accelerates: every belt test needed a person at the treadmill, and every design
@@ -167,8 +167,8 @@ decision went through the owner.
 
 | Topic | Status |
 |---|---|
-| **FTMS (Bluetooth Fitness Machine Service)** | Built, in testing: FTMS and footpod from the console's own radio, app control opt-in with limits (see [api.md](docs/en/api.md)). The manufacturer's own FTMS server is stopped because it bypasses the safety rules. Next: DIRCON (FTMS over Wi-Fi) for Zwift and Kinomap on the console itself. |
-| **ESP32 solution** | Only if needed, two steps: an ESP32-S3 on USB as a separate Bluetooth radio (if the console radio proves unreliable or for apps on the console without DIRCON); in the long run direct control over the serial line to the motor board (path 2 in [control-paths.md](docs/en/control-paths.md)), independent of the manufacturer software. The motor board's own safety logic and the safety key stay in place. |
+| **FTMS (Fitness Machine Service)** | Built, in testing: FTMS and footpod from the console's own radio, DIRCON (FTMS over Wi-Fi) for apps on the console itself, app control opt-in with limits (see [api.md](docs/en/api.md)). The manufacturer's own FTMS server is stopped because it bypasses the safety rules. Open: tests with Garmin, Kinomap and Zwift at the belt. |
+| **ESP32 solution** | Only if needed, two steps: an ESP32-S3 on USB as a separate Bluetooth radio (if the console radio proves unreliable or for apps without DIRCON support); in the long run direct control over the serial line to the motor board (path 2 in [control-paths.md](docs/en/control-paths.md)), independent of the manufacturer software. The motor board's own safety logic and the safety key stay in place. |
 | **Belt tests of the newest features** | Hardware keys after the switch to reading all input devices, fan buttons. |
 
 ## Requirements
@@ -199,6 +199,7 @@ adb -s $TREADXP_ADB shell am start-foreground-service -n com.gapsch.treadctl/.Tr
 | UI audit (demo mode, Lighthouse, accessibility; about 3 min, 8 browser tabs in parallel, fewer with `--par=4`) | `cd app/tools && npm ci && bash audit-waechter.sh` | no |
 | Route planner time-lapse | `app/tools/sim/RouteSim.java` | no |
 | Access protection | `bash app/tools/security-test.sh` | yes, belt stopped |
+| DIRCON (FTMS over Wi-Fi, read-only) | `adb forward tcp:36866 tcp:36866 && python3 app/tools/dircon-test.py` | yes |
 | Fault handling on the belt | `bash app/tools/fault-test.sh` | yes, **person at the treadmill** |
 | Route mode on the belt | `bash app/tools/strecke-bandtest.sh` | yes, **person at the treadmill** |
 | UI performance on the device (frames, long tasks, CPU profile) | `node app/tools/perf-messung.mjs` (needs `files/webdebug`, see [docs/en/api.md](docs/en/api.md)) | yes |

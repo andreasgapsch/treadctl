@@ -135,10 +135,13 @@ Laufzeit: Tempo-Eingaben ändern `offS` (bis «Zurück zum Plan»), Steigungs-Ei
 
 Die Konsole erscheint über ihr eigenes Bluetooth als Laufband (FTMS 0x1826) und als Laufsensor (RSC 0x1814), Name
 standardmässig «Tread Control». Uhren koppeln den Laufsensor (Tempo und Distanz vom Band), Apps auf anderen Geräten
-das Laufband. Apps auf der Konsole selbst brauchen DIRCON (folgt), weil Bluetooth nicht mit sich selbst verbindet.
+das Laufband. Apps auf der Konsole selbst nutzen DIRCON (FTMS über TCP, Port 36866, mDNS `_wahoo-fitness-tnp._tcp`
+als «Tread-Control»), weil Bluetooth nicht mit sich selbst verbindet. DIRCON nimmt standardmässig nur Verbindungen
+von der Konsole selbst an (`lan: false`); `lan: true` öffnet es für Apps im WLAN (PC, Apple TV). Prüfen:
+`adb forward tcp:36866 tcp:36866 && python3 app/tools/dircon-test.py` (nur lesend).
 
-- `GET /api/ftms` → `{on, ctl, keepJht, name, maxS, maxI, state, advertising, clients:[{addr, name}]}`.
-- `POST /api/ftms` (Token) mit beliebigen Feldern `{on, ctl, name, maxS, maxI, keepJht}`; gespeichert im Dienst.
+- `GET /api/ftms` → `{on, ctl, keepJht, name, maxS, maxI, state, advertising, dircon, lan, dirconState, clients:[{addr, name, wlan}]}`.
+- `POST /api/ftms` (Token) mit beliebigen Feldern `{on, ctl, name, maxS, maxI, keepJht, dircon, lan}`; gespeichert im Dienst.
   `name` bis 20 Zeichen (Buchstaben, Ziffern, Leerzeichen, `_.-`), wird zum Bluetooth-Namen der Konsole.
 - Steuerpunkt der Apps → `Core.appCmd` mit eigenen Regeln: **nie Start oder Weiter**, STOP und Pause immer;
   Tempo und Steigung nur mit `ctl`, nur im Lauf ohne Programm, nicht im Einlaufen, Grenzen `maxS` (Standard 14 km/h)

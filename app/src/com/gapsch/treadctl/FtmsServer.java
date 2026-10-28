@@ -42,7 +42,8 @@ public class FtmsServer {
     static final String T = "TREADCTL";
     static final ComponentName JHT = new ComponentName("com.jht.atsoul.nezuko", "com.jht.atsoul.service.gattserver.GATTServerService");
     final Context ctx; final Core core; final SharedPreferences prefs;
-    volatile boolean on, ctl, keepJht; volatile String name; volatile float maxS, maxI;
+    volatile boolean on, ctl, keepJht, dirconOn, lan; volatile String name; volatile float maxS, maxI;
+    final Dircon dircon;
     volatile String state = "aus"; volatile boolean advertising;
     BluetoothGattServer server; BluetoothLeAdvertiser adv; String oldName;
     BluetoothGattCharacteristic cTread, cTrain, cCtrl, cMach, cRsc;
@@ -55,6 +56,8 @@ public class FtmsServer {
         ctx = c; this.core = core; prefs = c.getSharedPreferences("ftms", Context.MODE_PRIVATE);
         on = prefs.getBoolean("on", false); ctl = prefs.getBoolean("ctl", false); keepJht = prefs.getBoolean("keepJht", false);
         name = prefs.getString("name", "Tread Control"); maxS = prefs.getFloat("maxS", 14f); maxI = prefs.getFloat("maxI", 10f);
+        dirconOn = prefs.getBoolean("dircon", false); lan = prefs.getBoolean("lan", false);
+        dircon = new Dircon(c, this); dircon.lan = lan;
         applyCore();
     }
     void applyCore() { core.appCtl = on && ctl; core.appMaxS = maxS; core.appMaxI = maxI; }
@@ -68,6 +71,7 @@ public class FtmsServer {
         } }, f);
         loop = new Thread(new Runnable() { public void run() { run1(); } }, "ftms"); loop.start();
         if (on) restart();
+        if (on && dirconOn) dircon.start(name);
     }
 
     /** Hersteller-FTMS anhalten (Werbung aus, Dienst stoppen) bzw. auf Wunsch wieder starten. Gleiche UID, darum erlaubt. */
@@ -201,18 +205,29 @@ public class FtmsServer {
         @Override public void onCharacteristicWriteRequest(BluetoothDevice d, int id, BluetoothGattCharacteristic c, boolean prep, boolean resp, int off, byte[] v) {
             if (!FtmsData.CONTROL.equals(c.getUuid())) { if (resp) server.sendResponse(d, id, BluetoothGatt.GATT_WRITE_NOT_PERMITTED, 0, null); return; }
             if (resp) server.sendResponse(d, id, BluetoothGatt.GATT_SUCCESS, 0, null);
-            FtmsData.Cp cp = FtmsData.parse(v);
             String who; synchronized (subs) { who = names.get(d.getAddress()); }
-            int res = cp.bad ? FtmsData.RES_INVALID : core.appCmd(cp.op, cp.v, who == null ? "App" : who);
-            Log.i(T, "ftms: steuerpunkt " + cp.op + " " + cp.v + " -> " + res);
-            send(d, cCtrl, FtmsData.response(cp.op, res), true);
-            if (res == FtmsData.RES_OK) {
-                if (cp.op == FtmsData.OP_SPEED) toAll(cMach, FtmsData.machineSpeed(Math.min(cp.v, core.appMaxS)));
-                if (cp.op == FtmsData.OP_INCL) toAll(cMach, FtmsData.machineIncl(Math.max(0, Math.min(cp.v, core.appMaxI))));
-            }
+            send(d, cCtrl, control(v, who == null ? "App" : who), true);
         }
         @Override public void onNotificationSent(BluetoothDevice d, int status) { sent.release(); }
     };
+
+    /** Befehl am Steuerpunkt (Bluetooth oder DIRCON) durch die Regeln der Steuerung; Antwort 0x80 fuer die App. */
+    byte[] control(byte[] v, String who) {
+        FtmsData.Cp cp = FtmsData.parse(v);
+        int res = cp.bad ? FtmsData.RES_INVALID : core.appCmd(cp.op, cp.v, who);
+        Log.i(T, "ftms: steuerpunkt " + cp.op + " " + cp.v + " von " + who + " -> " + res);
+        if (res == FtmsData.RES_OK) {
+            if (cp.op == FtmsData.OP_SPEED) emit(FtmsData.MACHINE, FtmsData.machineSpeed(Math.min(cp.v, core.appMaxS)));
+            if (cp.op == FtmsData.OP_INCL) emit(FtmsData.MACHINE, FtmsData.machineIncl(Math.max(0, Math.min(cp.v, core.appMaxI))));
+        }
+        return FtmsData.response(cp.op, res);
+    }
+    /** Meldung an alle Abonnenten, Bluetooth und DIRCON. */
+    void emit(UUID u, byte[] v) {
+        BluetoothGattCharacteristic c = FtmsData.TREAD.equals(u) ? cTread : FtmsData.STATUS_TRAIN.equals(u) ? cTrain : FtmsData.MACHINE.equals(u) ? cMach : FtmsData.RSC_MEAS.equals(u) ? cRsc : null;
+        if (c != null && server != null) toAll(c, v);
+        dircon.notifyAll(u, v);
+    }
 
     byte[] read(UUID u) {
         if (FtmsData.FEATURE.equals(u)) return FtmsData.feature(core.appCtl);
@@ -245,22 +260,21 @@ public class FtmsServer {
             sleep(1000); n++;
             try {
                 if (n % 30 == 0) { if (!keepJht) jhtGuard(); if (on && server == null && !state.startsWith("Bluetooth aus")) restart(); }
-                if (server == null) continue;
-                boolean any; synchronized (subs) { any = !subs.isEmpty(); }
-                if (!any) continue;
+                boolean any; synchronized (subs) { any = server != null && !subs.isEmpty(); }
+                if (!any && !dircon.hasClients()) continue;
                 String st = core.st;
-                toAll(cTread, FtmsData.treadmill(core.speed, core.dist, core.incline, core.kcal, core.hr, core.hrOk, core.elapsed));
-                toAll(cRsc, FtmsData.rsc(Core.LAEUFT.equals(st) ? core.speed : 0, core.dist));
+                emit(FtmsData.TREAD, FtmsData.treadmill(core.speed, core.dist, core.incline, core.kcal, core.hr, core.hrOk, core.elapsed));
+                emit(FtmsData.RSC_MEAS, FtmsData.rsc(Core.LAEUFT.equals(st) ? core.speed : 0, core.dist));
                 int tr = FtmsData.trainingStatus(st, core.holdLeft > 0);
-                if (tr != lastTrain) { toAll(cTrain, FtmsData.training(tr)); lastTrain = tr; }
+                if (tr != lastTrain) { emit(FtmsData.STATUS_TRAIN, FtmsData.training(tr)); lastTrain = tr; }
                 if (!st.equals(lastSt)) {
-                    if (Core.LAEUFT.equals(st)) toAll(cMach, FtmsData.machine(FtmsData.MS_START));
-                    else if (Core.PAUSE.equals(st)) toAll(cMach, FtmsData.machineStop(true));
-                    else if (Core.LAEUFT.equals(lastSt) || Core.PAUSE.equals(lastSt)) toAll(cMach, core.pulled == 1 ? FtmsData.machine(FtmsData.MS_SAFETY) : FtmsData.machineStop(false));
+                    if (Core.LAEUFT.equals(st)) emit(FtmsData.MACHINE, FtmsData.machine(FtmsData.MS_START));
+                    else if (Core.PAUSE.equals(st)) emit(FtmsData.MACHINE, FtmsData.machineStop(true));
+                    else if (Core.LAEUFT.equals(lastSt) || Core.PAUSE.equals(lastSt)) emit(FtmsData.MACHINE, core.pulled == 1 ? FtmsData.machine(FtmsData.MS_SAFETY) : FtmsData.machineStop(false));
                     lastSt = st;
                 }
                 // Handeingabe an der Konsole: App verliert die Steuerung (30 s Vorrang)
-                if (core.manualAt != lastManual) { if (lastManual != 0 && core.appAt > 0) toAll(cMach, FtmsData.machine(FtmsData.MS_LOST)); lastManual = core.manualAt; }
+                if (core.manualAt != lastManual) { if (lastManual != 0 && core.appAt > 0) emit(FtmsData.MACHINE, FtmsData.machine(FtmsData.MS_LOST)); lastManual = core.manualAt; }
             } catch (Throwable e) { Log.w(T, "ftms takt: " + e); }
         }
     }
@@ -272,23 +286,29 @@ public class FtmsServer {
             o.put("on", on); o.put("ctl", ctl); o.put("keepJht", keepJht); o.put("name", name); o.put("maxS", maxS); o.put("maxI", maxI);
             o.put("state", state); o.put("advertising", advertising);
             JSONArray cl = new JSONArray(); synchronized (subs) { for (Map.Entry<String, Set<UUID>> e : subs.entrySet()) if (!e.getValue().isEmpty()) cl.put(new JSONObject().put("addr", e.getKey()).put("name", names.get(e.getKey()))); }
+            for (Dircon.Client c : dircon.clients) cl.put(new JSONObject().put("addr", String.valueOf(c.s.getInetAddress())).put("name", c.who).put("wlan", true));
             o.put("clients", cl);
+            o.put("dircon", dirconOn); o.put("lan", lan); o.put("dirconState", dircon.state);
             return o.toString();
         } catch (Throwable e) { return Core.err(String.valueOf(e)); }
     }
     String cmd(JSONObject j) {
-        boolean wasOn = on, wasKeep = keepJht; String wasName = name;
+        boolean wasOn = on, wasKeep = keepJht, wasDc = dirconOn, wasLan = lan; String wasName = name;
         if (j.has("on")) on = j.optBoolean("on");
         if (j.has("ctl")) ctl = j.optBoolean("ctl");
         if (j.has("keepJht")) keepJht = j.optBoolean("keepJht");
+        if (j.has("dircon")) dirconOn = j.optBoolean("dircon");
+        if (j.has("lan")) { lan = j.optBoolean("lan"); dircon.lan = lan; }
         if (j.has("name")) { String n = j.optString("name").replaceAll("[^\\p{L}\\p{N} _.-]", "").trim(); if (n.length() > 0) name = n.length() > 20 ? n.substring(0, 20) : n; }
         if (j.has("maxS")) maxS = (float) Math.max(Core.S_MIN, Math.min(Core.S_MAX, j.optDouble("maxS", maxS)));
         if (j.has("maxI")) maxI = (float) Math.max(0, Math.min(Core.I_MAX, j.optDouble("maxI", maxI)));
         prefs.edit().putBoolean("on", on).putBoolean("ctl", ctl).putBoolean("keepJht", keepJht).putString("name", name)
-            .putFloat("maxS", maxS).putFloat("maxI", maxI).apply();
+            .putFloat("maxS", maxS).putFloat("maxI", maxI).putBoolean("dircon", dirconOn).putBoolean("lan", lan).apply();
         applyCore();
         if (keepJht && !wasKeep) jhtRestore();
         if (on != wasOn || (on && !name.equals(wasName))) { final boolean o = on; new Thread(new Runnable() { public void run() { if (o) restart(); else { close("aus"); stopAdv(); } } }).start(); }
+        boolean dcNow = on && dirconOn, dcWas = wasOn && wasDc;
+        if (dcNow != dcWas || (dcNow && (!name.equals(wasName) || lan != wasLan))) { final boolean d = dcNow; final String n = name; new Thread(new Runnable() { public void run() { if (d) dircon.start(n); else dircon.stop(); } }).start(); }
         return status();
     }
     static void sleep(long ms) { try { Thread.sleep(ms); } catch (InterruptedException e) {} }

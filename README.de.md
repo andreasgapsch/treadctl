@@ -51,7 +51,7 @@ jeder App im Griff.
 |---|---|
 | **Serien oder Filme schauen** in Jellyfin, YouTube oder SmartTube, während ein Intervallplan läuft | Die Steuerpille schwebt unten über jeder App: Steigung, STOP, Tempo, Live-Verlauf. 10 s vor jedem Wechsel kündigt ein Banner das neue Tempo und die neue Steigung an, mit Tönen bei 3, 2, 1. Runterwischen versteckt sie, hochwischen holt sie zurück. |
 | **Mit Musik oder Hörbuch laufen** (YouTube Music, Audiobookshelf) | Der Mini-Player im Kopf zeigt Titel und Cover, bedient Wiedergabe und Lautstärke, wechselt zwischen Musik und Hörbuch und schaltet den Ton auf die Konsole oder einen Bluetooth-Lautsprecher. |
-| **Videostrecken folgen** in Kinomap oder Zwift | Auf Tablet, Handy oder PC sehen die Apps die Konsole als Bluetooth-Laufband (FTMS) und lesen Tempo, Steigung und Distanz. Wenn du es erlaubst, dürfen Apps Tempo und Steigung innerhalb deiner Grenzen setzen; der Start bleibt an der Konsole, STOP wirkt immer. Apps auf der Konsole selbst brauchen DIRCON, siehe Ausblick. |
+| **Videostrecken folgen** in Kinomap oder Zwift | Die Apps sehen die Konsole als smartes Laufband (FTMS) und lesen Tempo, Steigung und Distanz: auf Tablet, Handy oder PC über Bluetooth, auf der Konsole selbst über WLAN (DIRCON). Wenn du es erlaubst, dürfen Apps Tempo und Steigung innerhalb deiner Grenzen setzen; der Start bleibt an der Konsole, STOP wirkt immer. |
 | **Mit Garmin-Uhr laufen** | Die Konsole erscheint auch als Laufsensor: Pace und Distanz auf der Uhr kommen vom Band statt aus der Schätzung am Handgelenk. |
 | **Nach Puls trainieren** mit Brustgurt oder Uhr | Bluetooth-Pulsgurte (z. B. Garmin HRM 600) und Uhren mit HF-Übertragung speisen Zonentraining, Stufentest und Ventilator. |
 | **Automatisch kühlen** | Ein smarter Ventilator CYCPLUS F1 folgt Tempo, Steigung und Puls; von Hand über die Pille. |
@@ -159,7 +159,7 @@ geprüften Produkt:
    hängende Oberfläche) und Leistungsmessungen am Gerät (Ruhelast der Oberfläche von 14 auf 3 %).
 5. **Automatisierte Nachweise:** 86 Szenariotests der Steuerlogik gegen ein simuliertes Band
    (inklusive echter Hauptschleife bei Busausfall, Neustart und hängendem Bus), 118 Prüfpunkte für
-   die Oberfläche (Darstellung, Barrierefreiheit, Lighthouse), 32 Sicherheitstests am Gerät, ein
+   die Oberfläche (Darstellung, Barrierefreiheit, Lighthouse), 33 Sicherheitstests am Gerät, ein
    Zeitraffer-Simulator für Streckenpläne und Fehlertests am echten Band mit Person.
 
 Menschen entscheiden, KI beschleunigt: Jeder Bandtest brauchte eine Person am Gerät, und jeder
@@ -169,8 +169,8 @@ Gestaltungsentscheid lief über den Besitzer.
 
 | Thema | Stand |
 |---|---|
-| **FTMS (Bluetooth Fitness Machine Service)** | Gebaut, im Test: FTMS und Laufsensor über das eigene Funkmodul der Konsole, Steuerung durch Apps nur auf Wunsch und mit Grenzen (siehe [api.md](docs/de/api.md)). Der FTMS-Dienst des Herstellers wird angehalten, weil er an den Sicherheitsregeln vorbeigeht. Als Nächstes: DIRCON (FTMS über WLAN) für Zwift und Kinomap auf der Konsole selbst. |
-| **ESP32-Lösung** | Nur bei Bedarf, in zwei Schritten: ein ESP32-S3 am USB als eigenes Bluetooth-Funkmodul (falls das Funkmodul der Konsole nicht zuverlässig genug ist oder für Apps auf der Konsole ohne DIRCON); langfristig die direkte Steuerung über die serielle Leitung zum Motorboard (Weg 2 in [control-paths.md](docs/de/control-paths.md)), unabhängig von der Herstellersoftware. Die eigene Schutzlogik des Motorboards und der Sicherheitsschlüssel bleiben erhalten. |
+| **FTMS (Fitness Machine Service)** | Gebaut, im Test: FTMS und Laufsensor über das eigene Funkmodul der Konsole, DIRCON (FTMS über WLAN) für Apps auf der Konsole selbst, Steuerung durch Apps nur auf Wunsch und mit Grenzen (siehe [api.md](docs/de/api.md)). Der FTMS-Dienst des Herstellers wird angehalten, weil er an den Sicherheitsregeln vorbeigeht. Offen: Tests mit Garmin, Kinomap und Zwift am Band. |
+| **ESP32-Lösung** | Nur bei Bedarf, in zwei Schritten: ein ESP32-S3 am USB als eigenes Bluetooth-Funkmodul (falls das Funkmodul der Konsole nicht zuverlässig genug ist oder für Apps ohne DIRCON); langfristig die direkte Steuerung über die serielle Leitung zum Motorboard (Weg 2 in [control-paths.md](docs/de/control-paths.md)), unabhängig von der Herstellersoftware. Die eigene Schutzlogik des Motorboards und der Sicherheitsschlüssel bleiben erhalten. |
 | **Bandtests der neuesten Funktionen** | Gerätetasten nach der Umstellung auf alle Eingabegeräte, Tasten am Ventilator. |
 
 ## Voraussetzungen
@@ -201,6 +201,7 @@ adb -s $TREADXP_ADB shell am start-foreground-service -n com.gapsch.treadctl/.Tr
 | Oberflächen-Audit (Demo, Lighthouse, Barrierefreiheit; rund 3 min, 8 Browser-Tabs parallel, weniger mit `--par=4`) | `cd app/tools && npm ci && bash audit-waechter.sh` | nein |
 | Zeitraffer Streckenplanung | `app/tools/sim/RouteSim.java` | nein |
 | Zugriffsschutz | `bash app/tools/security-test.sh` | ja, Band steht |
+| DIRCON (FTMS über WLAN, nur lesend) | `adb forward tcp:36866 tcp:36866 && python3 app/tools/dircon-test.py` | ja |
 | Fehlerfälle am Band | `bash app/tools/fault-test.sh` | ja, **Person am Band** |
 | Streckenmodus am Band | `bash app/tools/strecke-bandtest.sh` | ja, **Person am Band** |
 | Leistung der Oberfläche am Gerät (Bilder, lange Aufgaben, CPU-Profil) | `node app/tools/perf-messung.mjs` (braucht `files/webdebug`, siehe [docs/de/api.md](docs/de/api.md)) | ja |

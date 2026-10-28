@@ -379,7 +379,8 @@
     var sub2 = 'bis ' + (f ? f.maxS : 14) + ' km/h und ' + (f ? f.maxI : 10) + ' %; Start nur an der Konsole, STOP immer';
     return '<button class="trow" role="switch" data-f="on" aria-checked="' + on + '"' + (f ? '' : ' disabled') + '><div>Daten an Apps und Uhren<small data-k="fsub">' + esc(sub1) + '</small></div><span class="tg' + (on ? '' : ' off') + '"></span></button>' +
       (on ? '<button class="trow" role="switch" data-f="ctl" aria-checked="' + ctl + '"><div>Apps dürfen Tempo und Steigung steuern<small>' + esc(sub2) + '</small></div><span class="tg' + (ctl ? '' : ' off') + '"></span></button>' :
-        '<button class="trow lk" role="switch" data-f="ctl" aria-checked="false" aria-disabled="true" disabled><div>Apps dürfen Tempo und Steigung steuern<small>zuerst «Daten an Apps und Uhren» einschalten</small></div><span class="tlk">' + I('lock') + '<span class="tg off"></span></span></button>');
+        '<button class="trow lk" role="switch" data-f="ctl" aria-checked="false" aria-disabled="true" disabled><div>Apps dürfen Tempo und Steigung steuern<small>zuerst «Daten an Apps und Uhren» einschalten</small></div><span class="tlk">' + I('lock') + '<span class="tg off"></span></span></button>') +
+      (on ? '<button class="trow" role="switch" data-f="dircon" aria-checked="' + !!f.dircon + '"><div>Auch für Apps auf der Konsole<small>Zwift und Kinomap hier über WLAN (DIRCON)' + (f.dircon && f.dirconState && /^fehler/.test(f.dirconState) ? '; Störung' : '') + '</small></div><span class="tg' + (f.dircon ? '' : ' off') + '"></span></button>' : '');
   }
   TX.views.apps = function () {
     var root = document.createElement('div'); root.className = 'screen v-apps';

@@ -135,10 +135,13 @@ At run time speed inputs change `offS` (until back to plan), incline inputs `off
 
 The console appears over its own Bluetooth as a treadmill (FTMS 0x1826) and as a footpod (RSC 0x1814), named
 "Tread Control" by default. Watches pair the footpod (speed and distance from the belt), apps on other devices the
-treadmill. Apps on the console itself need DIRCON (planned), because Bluetooth cannot connect to itself.
+treadmill. Apps on the console itself use DIRCON (FTMS over TCP, port 36866, mDNS `_wahoo-fitness-tnp._tcp` as
+"Tread-Control"), because Bluetooth cannot connect to itself. By default DIRCON only accepts connections from the
+console itself (`lan: false`); `lan: true` opens it to apps in the Wi-Fi (PC, Apple TV). Check:
+`adb forward tcp:36866 tcp:36866 && python3 app/tools/dircon-test.py` (read-only).
 
-- `GET /api/ftms` → `{on, ctl, keepJht, name, maxS, maxI, state, advertising, clients:[{addr, name}]}`.
-- `POST /api/ftms` (token) with any of `{on, ctl, name, maxS, maxI, keepJht}`; stored by the service. `name` up to 20
+- `GET /api/ftms` → `{on, ctl, keepJht, name, maxS, maxI, state, advertising, dircon, lan, dirconState, clients:[{addr, name, wlan}]}`.
+- `POST /api/ftms` (token) with any of `{on, ctl, name, maxS, maxI, keepJht, dircon, lan}`; stored by the service. `name` up to 20
   characters (letters, digits, space, `_.-`), becomes the console's Bluetooth name.
 - Control point of the apps → `Core.appCmd` with its own rules: **never start or resume**, stop and pause always;
   speed and incline only with `ctl`, only while running without a program, not during the slow start, limits `maxS`
