@@ -412,7 +412,7 @@ public class OverlayService extends Service {
             case "ghost": {
                 // unsichtbarer Streifen am unteren Rand, nur zum Hochwischen (laesst die Knoepfe der App frei)
                 pill.setBackground(null); pill.setPadding(0, 0, 0, 0);
-                pill.addView(new View(this), new LinearLayout.LayoutParams(dp(300), dp(18)));
+                pill.addView(new View(this), new LinearLayout.LayoutParams(dp(360), dp(9)));   // nur der aeusserste Rand, damit Menueleisten der App frei bleiben
                 break; }
             case "side": {
                 // Schmale Leiste am linken Rand: zurueck zu Tread Control, Musik Wiedergabe/Pause, STOP (wirkt wie in der Pille)
