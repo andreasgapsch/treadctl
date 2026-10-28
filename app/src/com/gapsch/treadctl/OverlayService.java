@@ -134,16 +134,18 @@ public class OverlayService extends Service {
             if (e.getActionMasked() == MotionEvent.ACTION_DOWN) { y0 = e.getRawY(); x0 = e.getRawX(); return true; }
             if (e.getActionMasked() == MotionEvent.ACTION_UP) {
                 float dy = e.getRawY() - y0;
-                if (Math.abs(dy) > dp(24)) swipe(dy < 0); else if ("mini".equals(mode)) swipe(true);
+                if (Math.abs(dy) > dp(24)) swipe(dy < 0); else if ("mini".equals(mode) || "ghost".equals(mode)) swipe(true);
                 drag = false; return true;
             }
             return true;
         }
     }
-    boolean hiddenRun = false; TextView miniLabel;
+    boolean hiddenRun = false, sideOpen = false; TextView miniLabel;
     /** Hoch: Griff → Pille → ausgeklappt. Runter: ausgeklappt → Pille → Griff. Pause, Fehler und Schluessel bleiben sichtbar. */
     void swipe(boolean up) {
         touch();
+        if ("ghost".equals(mode) && up) { sideOpen = true; update(); return; }
+        if ("side".equals(mode) && !up) { sideOpen = false; update(); return; }
         if (up) {
             if ("mini".equals(mode)) { if ("LAEUFT".equals(st())) hiddenRun = false; else readyOpen = true; }
             else if ("col".equals(mode)) expanded = true;
@@ -243,7 +245,11 @@ public class OverlayService extends Service {
         String st = st();
         if ("FEHLER".equals(st)) return "err";
         if ("PAUSE".equals(st)) return "pause";
-        if (ownDisplay() && ("LAEUFT".equals(st) || "BEREIT".equals(st)) && (s == null || s.optInt("pulled") != 1)) return "side";
+        // Apps mit eigener Anzeige: unsichtbar; von unten hochwischen zeigt die Seitenleiste, nach 8 s ohne Beruehrung wieder weg
+        if (ownDisplay() && ("LAEUFT".equals(st) || "BEREIT".equals(st)) && (s == null || s.optInt("pulled") != 1)) {
+            if (sideOpen && System.currentTimeMillis() - lastInteract > 8000) sideOpen = false;
+            return sideOpen ? "side" : "ghost";
+        }
         if (!"LAEUFT".equals(st)) hiddenRun = false;
         if ("LAEUFT".equals(st)) return hiddenRun ? "mini" : expanded ? "exp" : "col";
         if (s != null && s.optInt("pulled") == 1) return "key";
@@ -403,6 +409,11 @@ public class OverlayService extends Service {
                 if (fanShown) add(fanBtn(), 4);
                 add(pb("graph", WHITE, new Runnable() { public void run() { toggleGraph(); } }), 4);
                 break; }
+            case "ghost": {
+                // unsichtbarer Streifen am unteren Rand, nur zum Hochwischen (laesst die Knoepfe der App frei)
+                pill.setBackground(null); pill.setPadding(0, 0, 0, 0);
+                pill.addView(new View(this), new LinearLayout.LayoutParams(dp(300), dp(18)));
+                break; }
             case "side": {
                 // Schmale Leiste am linken Rand: zurueck zu Tread Control, Musik Wiedergabe/Pause, STOP (wirkt wie in der Pille)
                 pill.setOrientation(LinearLayout.VERTICAL); pill.setPadding(dp(6), dp(8), dp(6), dp(8));
@@ -535,8 +546,8 @@ public class OverlayService extends Service {
     /** Mini-Knopf am linken Rand, sonst mittig. */
     void place() {
         try {
-            boolean mini = "mini".equals(mode), side = "side".equals(mode);
-            int g = side ? Gravity.LEFT | Gravity.CENTER_VERTICAL : Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, y = side ? 0 : baseY(), x = side ? dp(10) : 0;
+            boolean mini = "mini".equals(mode), side = "side".equals(mode), ghost = "ghost".equals(mode);
+            int g = side ? Gravity.LEFT | Gravity.CENTER_VERTICAL : Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, y = side || ghost ? 0 : baseY(), x = side ? dp(10) : 0;
             if (lp.gravity != g || lp.y != y || lp.x != x) { lp.gravity = g; lp.x = x; lp.y = y; wm.updateViewLayout(root, lp); }
             root.setAlpha(mini ? 0.92f : 1f);
             orderChildren();
@@ -1070,7 +1081,7 @@ public class OverlayService extends Service {
     // ---------------- Einbrennschutz ----------------
     /** Alle 2 min um wenige Pixel verschieben, unmerklich. */
     final Runnable shift = new Runnable() { public void run() {
-        try { boolean sd = "side".equals(mode); lp.x = (sd ? dp(10) : 0) + rnd.nextInt(9) - 4; lp.y = (sd ? 0 : baseY()) + rnd.nextInt(7) - 3; wm.updateViewLayout(root, lp); } catch (Throwable e) {}
+        try { boolean sd = "side".equals(mode), gh = "ghost".equals(mode); if (!gh) { lp.x = (sd ? dp(10) : 0) + rnd.nextInt(9) - 4; lp.y = (sd ? 0 : baseY()) + rnd.nextInt(7) - 3; wm.updateViewLayout(root, lp); } } catch (Throwable e) {}
         ui.postDelayed(this, 120000);
     }};
 
