@@ -48,9 +48,9 @@ under control on top of every app.
 
 | What you do | How Tread Control helps |
 |---|---|
-| **Watch series or films** in Jellyfin, YouTube or SmartTube while running an interval plan | The control pill floats at the bottom of every app: incline, STOP, speed, live chart. 10 s before every change a banner announces the new speed and incline, with tones at 3, 2, 1. Swipe down to hide it, swipe up to bring it back. |
+| **Watch series or films** in Jellyfin, YouTube or SmartTube while running an interval plan | While running, a small translucent pill above the app shows pace, heart rate and incline; tap it for incline, STOP, speed, music player, fan and live chart. 10 s before every change a banner announces the new speed and incline, with tones at 3, 2, 1. When idle nothing covers the app: swipe up from the bottom edge for the pill with START. |
 | **Run to music or an audiobook** (YouTube Music, Audiobookshelf) | The mini player in the header shows title and cover, controls play/pause and volume, switches between music and audiobook, and routes the sound to the console or a Bluetooth speaker. |
-| **Follow video routes** in Kinomap or Zwift | The apps see the console as a smart treadmill (FTMS) and read speed, incline and distance: on a tablet, phone or PC over Bluetooth, on the console itself over Wi-Fi (DIRCON). If you allow it, apps may set speed and incline within your limits; start stays on the console, STOP always works. |
+| **Follow video routes** in Kinomap or Zwift | The apps see the console as a smart treadmill (FTMS) and read speed, incline and distance over Bluetooth: on a tablet, phone or PC, and on the console itself through a small ESP32 board on its USB port ([esp32.md](docs/en/esp32.md)). If you allow it, apps may set speed and incline within your limits; a start from Kinomap or Zwift on the console runs the 3 s countdown of the START key, STOP always works. These apps show the run themselves, so Tread Control only offers menu and music from the bottom edge. |
 | **Run with a Garmin watch** | The console also appears as a footpod: pace and distance on the watch come from the belt instead of the wrist estimate. |
 | **Train by heart rate** with a chest strap or watch | Bluetooth heart-rate straps (e.g. Garmin HRM 600) and watches that broadcast heart rate feed the zone training, the step test and the fan. |
 | **Keep cool automatically** | A CYCPLUS F1 smart fan follows speed, incline and heart rate; manual override from the pill. |
@@ -167,8 +167,8 @@ decision went through the owner.
 
 | Topic | Status |
 |---|---|
-| **FTMS (Fitness Machine Service)** | Built, in testing: FTMS and footpod from the console's own radio, DIRCON (FTMS over Wi-Fi) for apps on the console itself, app control opt-in with limits (see [api.md](docs/en/api.md)). The manufacturer's own FTMS server is stopped because it bypasses the safety rules. Open: tests with Garmin, Kinomap and Zwift at the belt. |
-| **ESP32 solution** | Step 1 built, hardware test pending: an ESP32-S3 (e.g. Olimex ESP32-S3-DevKit-Lipo) on the console's USB as a separate Bluetooth radio, firmware in `esp32/`; needed for Kinomap on the console, which has no DIRCON. Step 2 in the long run: direct control over the serial line to the motor board (path 2 in [control-paths.md](docs/en/control-paths.md)), independent of the manufacturer software. The motor board's own safety logic and the safety key stay in place. |
+| **FTMS (Fitness Machine Service)** | Built and in use: FTMS and footpod from the console's own radio or the ESP32 board, DIRCON (FTMS over Wi-Fi) optional and off by default, app control opt-in with limits (see [api.md](docs/en/api.md)). The manufacturer's own FTMS server is stopped because it bypasses the safety rules. Kinomap and Zwift on the console work through the ESP32; open: Garmin footpod at the belt. |
+| **ESP32 solution** | Step 1 done and in use: an ESP32-S3 (tested: Olimex ESP32-S3-DevKit-Lipo) on the console's USB as a separate Bluetooth radio for apps on the console and for watches, firmware 1.2.1 in `esp32/`, setup in [esp32.md](docs/en/esp32.md). Step 2 in the long run: direct control over the serial line to the motor board (path 2 in [control-paths.md](docs/en/control-paths.md)), independent of the manufacturer software. The motor board's own safety logic and the safety key stay in place. |
 | **Belt tests of the newest features** | Hardware keys after the switch to reading all input devices, fan buttons. |
 
 ## Requirements
