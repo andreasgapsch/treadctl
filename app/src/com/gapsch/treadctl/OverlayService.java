@@ -237,7 +237,7 @@ public class OverlayService extends Service {
     String errKey() { return s == null ? "" : (s.optDouble("speed") < 0.3) + "/" + s.optInt("pulled"); }
     String lastErrKey = "";
     /** Apps mit eigener Anzeige von Tempo und Steigung: statt der Pille nur die schmale Seitenleiste (Zurueck, Musik, STOP). */
-    static final java.util.Set<String> OWN_DISPLAY = new java.util.HashSet<String>(java.util.Arrays.asList("com.kinomap.training"));
+    static final java.util.Set<String> OWN_DISPLAY = new java.util.HashSet<String>(java.util.Arrays.asList("com.kinomap.training", "com.zwift.zwiftgame"));
     boolean ownDisplay() { return s != null && OWN_DISPLAY.contains(s.optString("top", "")) && pref("sideInApps", true); }
 
     String wantMode() {
