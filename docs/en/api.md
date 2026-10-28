@@ -139,6 +139,12 @@ At run time speed inputs change `offS` (until back to plan), incline inputs `off
   1 = 15 min, 2 = 10 min, factory, 3 = off); state `erp` (read every 30 s, -1 unknown). Its timer restarts on touch,
   hardware keys and a moving belt. The pill reports touches in all apps and active playback as command `touch` (at most
   every 20 s); the service then sends `EVENT_TOUCH`. So the console only sleeps after real inactivity.
+- Start screen: command `home {on}` sets the preferred home activity (alias `.Home` of UiActivity, or the manufacturer UI,
+  which stays installed); state `home`. Unless switched, the service sets Tread Control on start. In the "Profil und
+  Bildschirm" dialog under "Beim Einschalten", with a link to open the manufacturer UI. Extras via the alias are ignored.
+- `GET /api/media?lite=1`: compact state for the pill's player (no sources, outputs or cover).
+- UI caching: index.html is always fresh, scripts and styles in it carry `?v=<install time>` and are cached for a year,
+  other files use an ETag (304 without body).
 
 ## Apps and watches (FTMS, footpod)
 

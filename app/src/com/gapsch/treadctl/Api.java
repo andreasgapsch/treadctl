@@ -43,7 +43,7 @@ public class Api {
 
     /** Zustand des Mini-Players (Titel, Interpret, App, spielt), null bei Fehler. */
     public static JSONObject mediaState(Context c) {
-        String s = http("GET", "/media", null, Token.read(c));
+        String s = http("GET", "/media?lite=1", null, Token.read(c));
         try { return s == null ? null : new JSONObject(s); } catch (Exception e) { return null; }
     }
 

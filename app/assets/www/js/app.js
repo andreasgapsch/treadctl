@@ -420,7 +420,7 @@
   function saverTxt(m) { return m > 0 ? m + ' min' : 'Aus'; }
   function profileDlg() {
     var pr = TX.profile(), hf = pr.hf, kg = pr.kg, st0 = api.state;
-    var sv = +TX.prefs().saverMin, svI = Math.max(0, SAVER_OPT.indexOf(sv)), erp0 = st0 && st0.erp >= 0 ? st0.erp : -1, erp = erp0;
+    var sv = +TX.prefs().saverMin, svI = Math.max(0, SAVER_OPT.indexOf(sv)), erp0 = st0 && st0.erp >= 0 ? st0.erp : -1, erp = erp0, home0 = !st0 || st0.home !== false, home = home0;
     var m = document.createElement('div'); m.className = 'modal blur'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-labelledby', 'prh');
     // zwei Spalten: links Profil (Name, HFmax, Gewicht, Zonen), rechts Bildschirm (Bildschirmschoner, Standby der Konsole)
     m.innerHTML = '<div class="dlg pdlg wide"><h2 id="prh">Profil und Bildschirm</h2><div class="pcols"><div class="pcol">' +
@@ -436,6 +436,9 @@
       '<div class="frow"><span class="lab">Standby der Konsole</span><div class="seg" role="radiogroup" aria-label="Standby der Konsole">' +
       ERP_OPT.map(function (o) { return '<button role="radio" data-erp="' + o[0] + '">' + o[1] + '</button>'; }).join('') + '</div>' +
       '<div class="mut pkg">' + (erp0 < 0 ? 'Stand der Konsole unbekannt. ' : '') + 'Die Konsole schläft nach so langer Ruhe ohne Berührung, Band und Wiedergabe; Aufwecken mit Berührung oder Taste.</div></div>' +
+      '<div class="frow"><span class="lab">Beim Einschalten</span><div class="seg" role="radiogroup" aria-label="Beim Einschalten">' +
+      '<button role="radio" data-home="1">Tread Control</button><button role="radio" data-home="0">Hersteller</button></div>' +
+      '<div class="mut pkg">Auch die Home-Taste führt dorthin. <button class="lnk" data-x="vendor">Herstelleroberfläche öffnen</button></div></div>' +
       '</div></div>' +
       '<div class="acts"><a class="btn ghost" href="#/geraete" data-x="dev">' + I('heart') + ' Geräte koppeln</a><span style="flex:1"></span><button class="btn ghost" data-x="no">Abbrechen</button><button class="btn go" data-x="ok">' + I('check') + ' Speichern</button></div></div>';
     function zp() { m.querySelector('[data-k="zp"]').innerHTML = TX.zones(hf).map(function (z) { return '<div><b style="color:' + TX.ZT[z.z] + '">Z' + z.z + '</b>' + z.txt + '</div>'; }).join(''); m.querySelector('[data-k="hf"]').textContent = hf; m.querySelector('[data-k="kg"]').textContent = kg; }
@@ -444,14 +447,18 @@
     function scr() {
       m.querySelector('[data-k="sv"]').textContent = saverTxt(SAVER_OPT[svI]);
       TX.$$('[data-erp]', m).forEach(function (b) { var on = +b.getAttribute('data-erp') === erp; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+      TX.$$('[data-home]', m).forEach(function (b) { var on = (b.getAttribute('data-home') === '1') === home; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
     }
     TX.$$('[data-sv]', m).forEach(function (b) { b.addEventListener('click', function () { svI = TX.clamp(svI + +b.getAttribute('data-sv'), 0, SAVER_OPT.length - 1); scr(); }); });
     TX.$$('[data-erp]', m).forEach(function (b) { b.addEventListener('click', function () { erp = +b.getAttribute('data-erp'); scr(); }); });
+    TX.$$('[data-home]', m).forEach(function (b) { b.addEventListener('click', function () { home = b.getAttribute('data-home') === '1'; scr(); }); });
     m.addEventListener('click', function (e) {
       var b = e.target.closest('[data-x]'); if (!b) return;
+      if (b.getAttribute('data-x') === 'vendor') { if (!TX.native.vendorUi()) TX.toast('Herstelleroberfläche nicht gefunden'); return; }
       if (b.getAttribute('data-x') === 'ok') {
         TX.saveProfile({ name: (m.querySelector('#pname').value || '').trim() || pr.name, hf: hf, kg: kg });
         var svm = SAVER_OPT[svI]; TX.setPref('saverMin', svm); TX.native.setPref('saverMin', String(svm)); TX.native.setPref('saver', String(svm > 0));
+        if (home !== home0) TX.api.cmd('home', { on: home }).then(function (r) { if (!r || !r.ok) TX.toast('Startbildschirm nicht gesetzt: ' + (r && r.error || 'Dienst nicht erreicht')); });
         if (erp >= 0 && erp !== erp0) TX.api.cmd('standby', { i: erp }).then(function (r) { if (!r || !r.ok) TX.toast('Standby nicht gesetzt: ' + (r && r.error || 'Dienst nicht erreicht')); });
         TX.sendProfile().then(function (r) { TX.toast(r && r.ok ? 'Profil gespeichert' : 'Profil gespeichert, Dienst nicht erreicht'); });
         route();

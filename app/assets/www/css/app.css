@@ -1131,3 +1131,4 @@ svg.i.f{fill:currentColor;stroke:none}
 /* Einstellungen der App-Seite: alle Schalter ohne Scrollen sichtbar, sonst scrollt die Karte */
 .set{overflow-y:auto}
 .set .trow{min-height:60px;padding:5px 0}
+.pdlg .lnk{background:none;border:0;color:var(--spd);font:inherit;font-weight:700;padding:0 4px;min-height:48px;text-decoration:underline;text-underline-offset:3px}

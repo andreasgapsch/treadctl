@@ -45,6 +45,8 @@ public class TreadDaemon extends Service {
             wifiLock = wm.createWifiLock(android.net.wifi.WifiManager.WIFI_MODE_FULL_HIGH_PERF, "treadctl:wlan");
             wifiLock.setReferenceCounted(false); wifiLock.acquire();
         } catch (Throwable e) { Log.w(T, "wlan-sperre: " + e); }
+        // Herstellerdienste (Motorboard, Hardware, Standby) vor dem Kern: als Startbildschirm laeuft der Herstellerstart nicht
+        try { int n = VendorServices.ensure(this); if (n > 0) Log.i(T, "herstellerdienste gestartet: " + n); } catch (Throwable e) {}
         core = new Core(this);
         Thread t = new Thread(core, "core"); t.setPriority(Thread.MAX_PRIORITY); t.start();
         new KeyReader(core).start();   // Tasten und Drehregler der Konsole
@@ -64,9 +66,11 @@ public class TreadDaemon extends Service {
     android.os.PowerManager.WakeLock wake;
     /** Startet die Pille neu, falls ihr Prozess verschwunden ist; haelt das Geraet wach, solange das Band in Gebrauch ist. */
     void guard() {
+        int k = 0;
         while (core.alive) {
             try {
                 Thread.sleep(5000);
+                if (++k % 12 == 0) { int n = VendorServices.ensure(this); if (n > 0) core.log("herstellerdienste neu gestartet: " + n, 0); }   // jede Minute
                 if (!OverlayService.isRunning(this)) startForegroundService(new Intent(this, OverlayService.class));
                 boolean use = !Core.BEREIT.equals(core.st) || core.speed > 0.3f;
                 if (use && (wake == null || !wake.isHeld())) {

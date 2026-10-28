@@ -349,7 +349,8 @@ public class OverlayService extends Service {
             java.util.HashSet<String> open = new java.util.HashSet<String>();
             while (true) {
                 String[] l = new java.io.File("/dev/input").list();
-                if (l != null) for (String n : l) if (n.startsWith("event") && open.add(n)) {
+                java.util.Set<String> want = KeyReader.devicesFor(KeyReader.K_STOP);   // nur Geraete mit STOP-Taste; unbekannt: alle
+                if (l != null) for (String n : l) if (n.startsWith("event") && (want.isEmpty() || want.contains(n)) && open.add(n)) {
                     final String dev = "/dev/input/" + n;
                     Thread t = new Thread(new Runnable() { public void run() { stopKeyLoop(dev); } }, "stoptaste-" + n); t.setDaemon(true); t.start();
                 }

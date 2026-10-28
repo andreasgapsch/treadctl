@@ -47,6 +47,9 @@ public class UiActivity extends Activity {
         super.onCreate(b);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         getWindow().getDecorView().setBackgroundColor(0xFF000000);
+        // Als Startbildschirm kommt die Oberflaeche vor BOOT_COMPLETED: Dienst und Pille gleich mitstarten (laufen sie schon, ohne Wirkung)
+        try { startForegroundService(new Intent(this, TreadDaemon.class)); } catch (Throwable e) {}
+        overlay(null);
         build();
     }
 
@@ -83,20 +86,24 @@ public class UiActivity extends Activity {
         setContentView(wv);
     }
 
+    /** Start ueber den exportierten Startbildschirm-Alias: keine Zusaetze (Route, Demo) von aussen. */
+    static boolean external(Intent i) { return i != null && i.getComponent() != null && "com.gapsch.treadctl.Home".equals(i.getComponent().getClassName()); }
     static String route(Intent i) {
+        if (external(i)) return "";
         String r = i == null ? null : i.getStringExtra("route");
         return r != null && r.matches("/[a-z/0-9-]{0,60}") ? "#" + r : "";
     }
 
     /** Nur fuer Abnahmefotos (Activity ist nicht exportiert, Start nur per Root-adb): Demo-Szenario statt echter Werte. */
     static String demo(Intent i) {
+        if (external(i)) return "";
         String q = i == null ? null : i.getStringExtra("demo");
         return q != null && q.matches("[a-z0-9=&-]{0,80}") ? "?demo=1" + (q.length() > 0 ? "&" + q : "") : "";
     }
 
     @Override protected void onNewIntent(Intent i) {
         super.onNewIntent(i);
-        if (i != null && i.hasExtra("demo") || wv != null && wv.getUrl() != null && wv.getUrl().contains("demo=1")) {
+        if (i != null && !external(i) && i.hasExtra("demo") || wv != null && wv.getUrl() != null && wv.getUrl().contains("demo=1")) {
             if (wv != null) wv.loadUrl("http://127.0.0.1:8765/" + demo(i) + route(i)); return;
         }
         String r = route(i);
@@ -169,6 +176,11 @@ public class UiActivity extends Activity {
             try { Intent i = new Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS); i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); startActivity(i); } catch (Throwable e) {}
         }
         /** Herstellereinstellungen (Zahnrad der eigenen Statuszeile). */
+        /** Herstelleroberflaeche oeffnen (Einstellungen, Kalibrierung des Herstellers); Home-Taste fuehrt zurueck. */
+        @JavascriptInterface public boolean vendorUi() {
+            try { Intent i = new Intent(Intent.ACTION_MAIN).setComponent(HomeScreen.VENDOR).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); startActivity(i); return true; }
+            catch (Throwable e) { return false; }
+        }
         @JavascriptInterface public void openSettings() {
             try { Intent i = new Intent(android.provider.Settings.ACTION_SETTINGS); i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK); startActivity(i); } catch (Throwable e) {}
         }

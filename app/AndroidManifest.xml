@@ -32,6 +32,15 @@
             android:launchMode="singleTask"
             android:theme="@android:style/Theme.NoTitleBar.Fullscreen"
             android:configChanges="orientation|screenSize|keyboardHidden"/>
+        <!-- Startbildschirm: Tread Control statt der Herstelleroberflaeche (die bleibt installiert und ueber die Oberflaeche erreichbar).
+             Exportiert nur fuer den Home-Start; Zusaetze von aussen ignoriert UiActivity. -->
+        <activity-alias android:name=".Home" android:targetActivity=".UiActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.HOME"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+        </activity-alias>
         <!-- Startet nur die Dienste; bewegt das Band nie -->
         <receiver android:name=".BootReceiver" android:exported="true" android:process=":core">
             <intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/><action android:name="android.intent.action.MY_PACKAGE_REPLACED"/></intent-filter>

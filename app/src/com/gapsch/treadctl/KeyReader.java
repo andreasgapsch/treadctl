@@ -24,13 +24,40 @@ public class KeyReader {
         new Thread(new Runnable() { public void run() {
             while (true) {
                 String[] l = new java.io.File("/dev/input").list();
-                if (l != null) for (String n : l) if (n.startsWith("event")) {
+                // nur Geraete, die Konsolentasten melden koennen (nicht Touchscreen, Sensoren); unbekannt: alle wie bisher
+                java.util.Set<String> want = devicesFor(K_STOP, K_GO, K_SAFETY, K_INCL_UP, K_INCL_DOWN, K_SPEED_DOWN, K_SPEED_UP);
+                if (l != null) for (String n : l) if (n.startsWith("event") && (want.isEmpty() || want.contains(n))) {
                     final String d = "/dev/input/" + n;
                     if (open.add(d)) new Thread(new Runnable() { public void run() { loop(d); } }, "keys-" + n).start();
                 }
                 try { Thread.sleep(10000); } catch (InterruptedException e) { return; }
             }
         } }, "keys-scan").start();
+    }
+    /** Eingabegeraete (eventN), die laut /proc/bus/input/devices mindestens einen der Codes melden koennen. Leer, wenn unlesbar. */
+    static java.util.Set<String> devicesFor(int... codes) {
+        java.util.Set<String> out = new java.util.HashSet<String>();
+        try {
+            String all = new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get("/proc/bus/input/devices")), "UTF-8");
+            for (String blk : all.split("\n\n")) {
+                String ev = null, key = null;
+                for (String ln : blk.split("\n")) {
+                    if (ln.startsWith("H: Handlers=")) { for (String h : ln.substring(12).trim().split(" ")) if (h.startsWith("event")) ev = h; }
+                    else if (ln.startsWith("B: KEY=")) key = ln.substring(7).trim();
+                }
+                if (ev != null && key != null && hasAny(key, codes)) out.add(ev);
+            }
+        } catch (Throwable e) { out.clear(); }
+        return out;
+    }
+    /** Bitmaske (Hexwoerter, hoechstes zuerst); Wortbreite 64 oder 32 Bit, beide pruefen (lieber ein Geraet zu viel). */
+    static boolean hasAny(String key, int[] codes) {
+        String[] w = key.split(" ");
+        for (int bits : new int[]{ 64, 32 }) for (int c : codes) {
+            int wi = w.length - 1 - c / bits; if (wi < 0) continue;
+            try { long v = Long.parseUnsignedLong(w[wi], 16); if (((v >>> (c % bits)) & 1L) != 0) return true; } catch (Throwable e) {}
+        }
+        return false;
     }
     static boolean isOurs(int code) { return code == K_STOP || code == K_GO || code == K_SAFETY || (code >= K_INCL_UP && code <= K_SPEED_UP); }
 

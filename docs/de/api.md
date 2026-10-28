@@ -139,6 +139,12 @@ Laufzeit: Tempo-Eingaben ändern `offS` (bis «Zurück zum Plan»), Steigungs-Ei
   2 = 10 min, Werk, 3 = aus); Zustand `erp` (alle 30 s gelesen, -1 unbekannt). Ihr Zeitgeber läuft bei Berührung,
   Gerätetasten und laufendem Band neu an. Die Pille meldet Berührungen in allen Apps und laufende Wiedergabe als
   Befehl `touch` (höchstens alle 20 s), der Dienst sendet dann `EVENT_TOUCH`. So schläft die Konsole nur nach echter Ruhe.
+- Startbildschirm: Befehl `home {on}` setzt die bevorzugte Startseite (Alias `.Home` von UiActivity oder die Herstelleroberfläche,
+  die installiert bleibt); Zustand `home`. Ohne Umstellung setzt der Dienst beim Start Tread Control. Im Dialog «Profil und
+  Bildschirm» unter «Beim Einschalten», dort auch «Herstelleroberfläche öffnen». Zusätze (Route, Demo) über den Alias werden ignoriert.
+- `GET /api/media?lite=1`: knapper Zustand für den Player der Pille (ohne Quellen, Ausgänge, Cover).
+- Oberfläche: index.html immer frisch, Skripte und Stile darin mit `?v=<Installationsstand>` ein Jahr im Zwischenspeicher,
+  übrige Dateien mit ETag (304 ohne Inhalt).
 
 ## Apps und Uhren (FTMS, Laufsensor)
 

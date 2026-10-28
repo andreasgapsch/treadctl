@@ -130,6 +130,10 @@ public class Core implements Runnable {
             busFail = 3; busRetryAt = clock() + 1500; pulled = -1;
             synchronized (lock) { if (had) st = PAUSE; setError("Herstellerbus beim Start nicht erreichbar"); }
             bus.reset();
+        } else if (speed > 0.3f && watchStopped()) {   // die Wache hat STOP gesendet und neu gestartet: Band laeuft nur aus, nicht uebernehmen
+            try { bus.sendEvent(A_STOP); stopSentAt = clock(); } catch (Throwable e) {}
+            synchronized (lock) { if (had) { st = PAUSE; pausedAt = clock(); lastStopAt = pausedAt; note = "Nach Neustart angehalten, Weiter startet neu"; } }
+            log("nach wache: band laeuft aus", speed);
         } else if (speed > 0.3f) {
             st = LAEUFT; src = "uebernommen"; note = had ? "Dienst neu gestartet, Lauf geht weiter" : "Steuerung neu verbunden, Band lief bereits";
             try { tSpeed = bus.getFloat(D_TGT_S); } catch (Throwable e) { tSpeed = speed; }
@@ -172,6 +176,11 @@ public class Core implements Runnable {
         }
     }
 
+    /** Hat die Wache vor hoechstens 60 s gestoppt und neu gestartet? Der Merker gilt nur einmal. */
+    boolean watchStopped() {
+        try { File f = new File(ctx.getFilesDir(), "wache-stop"); if (!f.exists()) return false; boolean fresh = System.currentTimeMillis() - f.lastModified() < 60000; f.delete(); return fresh; }
+        catch (Throwable e) { return false; }
+    }
     // ---------------- Wache ueber die Hauptschleife ----------------
     volatile long lastTickAt = clock();
     /** Haengt die Hauptschleife (z. B. Binder-Aufruf an einen haengenden Herstellerdienst), steht alles still, der Prozess
@@ -196,7 +205,11 @@ public class Core implements Runnable {
                         try { DataBus b = new DataBus(); if (b.connect(ctx)) b.sendEvent(A_STOP); } catch (Throwable e) {}
                     } }, "wache-stop").start();
                 }
-                if (idle > 15000) { logBox("wache: prozess wird neu gestartet"); android.os.Process.killProcess(android.os.Process.myPid()); }
+                if (idle > 15000) {
+                    logBox("wache: prozess wird neu gestartet");
+                    try { new File(ctx.getFilesDir(), "wache-stop").createNewFile(); } catch (Throwable e) {}   // Merker: nach dem Neustart nicht als laufend uebernehmen
+                    android.os.Process.killProcess(android.os.Process.myPid());
+                }
                 if (idle < 2000) warned = false;
             }
         } }, "wache");
@@ -213,13 +226,21 @@ public class Core implements Runnable {
     volatile String topPkg = ""; Boolean barShown = null; long barCheck = 0; volatile boolean hideBar = true;
     /** Vordere App ueber einen eigenen Thread (Binder-Aufruf an system_server, der beim App-Wechsel lange dauern kann):
      *  der Takt liest nur das Ergebnis. Dort auch die Systemeinstellungen (policyGuard). */
+    volatile boolean homeOurs = true;
     volatile String seenTop = ""; String hygTop = ""; long hygSince = 0; boolean hygPending = false;
     void startTopWatch() {
         Thread w = new Thread(new Runnable() { public void run() {
             try { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND); } catch (Throwable e) {}
             android.app.ActivityManager am = (android.app.ActivityManager) ctx.getSystemService(Context.ACTIVITY_SERVICE);
+            // Beim Start: Tread Control als Startbildschirm, sofern nicht auf Hersteller umgestellt
+            try { if (ctx.getSharedPreferences("core", Context.MODE_PRIVATE).getBoolean("home", true) && !HomeScreen.isOurs(ctx)) log("startseite gesetzt: " + HomeScreen.set(ctx, true), 0); } catch (Throwable e) {}
+            long homeAt = 0;
             while (alive) {
                 try {
+                    if (clock() - homeAt > 30000) {   // alle 30 s: Startseite pruefen und bei Bedarf wieder auf Tread Control (Einstellung «Beim Einschalten»)
+                        homeAt = clock(); homeOurs = HomeScreen.isOurs(ctx);
+                        if (!homeOurs && ctx.getSharedPreferences("core", Context.MODE_PRIVATE).getBoolean("home", true)) { homeOurs = HomeScreen.set(ctx, true); log("startseite wieder gesetzt: " + homeOurs, 0); }
+                    }
                     java.util.List<android.app.ActivityManager.RunningTaskInfo> t = am.getRunningTasks(1);
                     if (t != null && !t.isEmpty() && t.get(0).topActivity != null) seenTop = t.get(0).topActivity.getPackageName();
                     policyGuard(clock());
@@ -333,6 +354,8 @@ public class Core implements Runnable {
         }
         // automatisches Programmende: sanft auf 3 km/h, nach 10 s anhalten
         if (hwStartAt > 0 && now >= hwStartAt) hwFire();
+        if (LAEUFT.equals(st) && speed < 0.3f) standT += dt; else standT = 0;
+        if (standT >= 8) { standT = 0; doStop("band steht"); note = "Band steht, Lauf pausiert"; }   // Anzeige nie «läuft» bei stehendem Band
         if (LAEUFT.equals(st) && holdLeft > 0) {
             holdLeft -= dt;
             if (holdLeft <= 0) { holdLeft = 0; double t = holdTarget; holdTarget = -1; note = ""; if (t > HOLD_SPEED + 0.05) rampSpeed(t, "programm"); }
@@ -349,6 +372,7 @@ public class Core implements Runnable {
     }
 
     long pausedAt = 0, lastStopAt = 0; double pauseIdle = 0;
+    double standT = 0;   // Sekunden in LAEUFT bei stehendem Band
     volatile long consoleStopAt = 0, appStartRejAt = 0; final java.util.HashMap<String, Long> appLogAt = new java.util.HashMap<String, Long>();   // STOP an der Konsole (Taste, Pille); Logbuch ohne Wiederholungen   // Sekunden in PAUSE ohne Eingabe
     float prevSpeed = 0f;
     long lastSet = 0;
@@ -512,7 +536,8 @@ public class Core implements Runnable {
         lastSummary = sum;
         try { java.nio.file.Files.write(new File(ctx.getFilesDir(), "letzter-lauf.json").toPath(), sum.toString().getBytes("UTF-8")); } catch (Throwable e) {}   // nicht nur im RAM
         resetRun(); st = BEREIT; lastStopAt = clock(); tIncl = 0f; tSpeed = HOLD_SPEED; prog = null; progType = null; segs = null; rp = null; endTimer = -1; note = ""; err = "";
-        io.execute(new Runnable() { public void run() { try { snapFile().delete(); } catch (Throwable e) {} } });
+        // ueber den Schreib-Thread (nach einem noch laufenden Schreiben), kurz darauf warten: danach gibt es sicher keinen Laufstand mehr
+        try { io.submit(new Runnable() { public void run() { try { snapFile().delete(); } catch (Throwable e) {} } }).get(800, java.util.concurrent.TimeUnit.MILLISECONDS); } catch (Throwable e) {}
         log("ende " + from, 0);
         return sum;
     }
@@ -520,6 +545,12 @@ public class Core implements Runnable {
     String cmd(JSONObject j, String from) {
         String c = j.optString("c");
         if ("stop".equals(c)) { armAt = 0; hwStartAt = 0; return stopNow(from); }
+        if ("home".equals(c)) {   // Startbildschirm: Tread Control oder Hersteller (Binder-Aufruf, ausserhalb der Sperre)
+            boolean on = j.optBoolean("on", true);
+            ctx.getSharedPreferences("core", Context.MODE_PRIVATE).edit().putBoolean("home", on).apply();
+            boolean ok = HomeScreen.set(ctx, on); homeOurs = HomeScreen.isOurs(ctx); log("startseite " + (on ? "tread control" : "hersteller") + (ok ? "" : " fehlgeschlagen"), 0);
+            return ok ? ok() : err("Startseite nicht gesetzt");
+        }
         synchronized (lock) {
             try {
                 if (!"touch".equals(c)) pauseIdle = 0;   // jede Eingabe verlaengert die Pause
@@ -888,7 +919,7 @@ public class Core implements Runnable {
             if (fanKnown) o.put("fan", new JSONObject().put("l", Math.max(0, fanLevel)).put("a", fanAuto).put("c", fanLevel >= 0));   // Platz in der Pille bleibt, solange ein Ventilator gespeichert ist
             if (holdLeft > 0) { o.put("hold", Math.ceil(holdLeft)); o.put("holdTo", r1((float) holdTarget)); }
             if (appCtl) o.put("appCtl", true);
-            o.put("erp", erpIdx);
+            o.put("erp", erpIdx); o.put("home", homeOurs);
             if (LAEUFT.equals(st) && !appBlocked && appAt > 0 && clock() - appAt < 15000) o.put("app", appName);   // App steuert gerade
             if (hwStartAt > 0) o.put("cd", Math.max(1, (int) Math.ceil((hwStartAt - clock()) / 1000.0))); o.put("top", topPkg); o.put("bar", barShown == null || barShown);
             if (prog != null) o.put("prog", progJson(withHist)); else o.put("prog", JSONObject.NULL);

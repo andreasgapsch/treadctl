@@ -17,7 +17,7 @@ import org.json.JSONObject;
 public class Conn implements Runnable {
     final TreadDaemon d;
     final Socket s;
-    String method = "", path = "/", query = "", host = "", token = "", origin = "", from = "ui";
+    String method = "", path = "/", query = "", host = "", token = "", origin = "", from = "ui", ifNone = "";
     int clen = 0;
     String cache = "no-store";
 
@@ -40,6 +40,7 @@ public class Conn implements Runnable {
                 else if (k.equals("x-token")) token = v;
                 else if (k.equals("origin")) origin = v;
                 else if (k.equals("x-from")) from = v;
+                else if (k.equals("if-none-match")) ifNone = v;
                 else if (k.equals("content-length")) try { clen = Integer.parseInt(v); } catch (Exception e) {}
             }
             if (!host.equals("127.0.0.1:" + TreadDaemon.PORT) && !host.equals("localhost:" + TreadDaemon.PORT)) {
@@ -80,7 +81,7 @@ public class Conn implements Runnable {
             return;
         }
         if (path.startsWith("/api/routes")) { routes(in); return; }
-        if (path.equals("/api/media") && method.equals("GET")) { json(200, d.media == null ? Core.err("kein Player") : d.media.status()); return; }
+        if (path.equals("/api/media") && method.equals("GET")) { json(200, d.media == null ? Core.err("kein Player") : query.contains("lite=1") ? d.media.statusLite() : d.media.status()); return; }
         if (path.equals("/api/media/art") && method.equals("GET")) {
             byte[] b = d.media == null ? null : d.media.artwork();
             if (b == null) { send(404, "text/plain", "kein Bild".getBytes()); return; }
@@ -240,8 +241,15 @@ public class Conn implements Runnable {
         if (path.equals("/")) path = "/index.html";
         if (path.contains("..")) { send(400, "text/plain", "bad".getBytes()); return; }
         try {
+            // Zwischenspeicher der Oberflaeche: index.html immer frisch, darin Skripte und Stile mit ?v=<Installationsstand> (ein Jahr gueltig);
+            // alles andere (Bilder, Strecken) mit ETag, unveraendert nur 304 ohne Inhalt. Nach einem Update aendert sich der Stand.
+            String ver = version(), etag = "\"" + ver + "\"";
+            boolean index = path.equals("/index.html");
+            if (!index && etag.equals(ifNone)) { cache = "no-cache"; sendHead(304, etag); return; }
             InputStream is = d.getAssets().open("www" + path);
             byte[] data = readAll(is); is.close();
+            if (index) data = new String(data, "UTF-8").replaceAll("(src|href)=\"((?:js|css|lib)/[^\"?]+)\"", "$1=\"$2?v=" + ver + "\"").getBytes("UTF-8");
+            else { cache = query.equals("v=" + ver) ? "max-age=31536000, immutable" : "no-cache"; etagOut = etag; }
             send(200, mime(path), data);
         } catch (Exception e) {
             send(404, "text/plain", ("nicht gefunden: " + path).getBytes("UTF-8"));
@@ -274,12 +282,25 @@ public class Conn implements Runnable {
 
     void json(int code, String body) throws Exception { send(code, "application/json; charset=utf-8", body.getBytes("UTF-8")); }
 
+    static String ver;
+    /** Installationsstand der App (aendert sich mit jedem Update): Kennung fuer den Zwischenspeicher der Oberflaeche. */
+    String version() {
+        if (ver == null) try { ver = Long.toString(d.getPackageManager().getPackageInfo(d.getPackageName(), 0).lastUpdateTime, 36); } catch (Throwable e) { ver = "0"; }
+        return ver;
+    }
+    String etagOut = null;
+    void sendHead(int code, String etag) throws Exception {
+        OutputStream o = s.getOutputStream();
+        o.write(("HTTP/1.1 " + code + " Not Modified\r\nETag: " + etag + "\r\nCache-Control: " + cache + "\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").getBytes("UTF-8")); o.flush();
+    }
+
     void send(int code, String ctype, byte[] body) throws Exception {
         OutputStream o = s.getOutputStream();
         String head = "HTTP/1.1 " + code + (code == 200 ? " OK" : " ERR") + "\r\n"
             + "Content-Type: " + ctype + "\r\n"
             + "Content-Length: " + body.length + "\r\n"
             + "Cache-Control: " + cache + "\r\n"
+            + (code == 200 && etagOut != null ? "ETag: " + etagOut + "\r\n" : "")
             + "X-Content-Type-Options: nosniff\r\n"
             + "Connection: close\r\n\r\n";
         o.write(head.getBytes("UTF-8")); o.write(body); o.flush();

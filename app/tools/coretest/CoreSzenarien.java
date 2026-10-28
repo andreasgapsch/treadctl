@@ -379,6 +379,17 @@ public class CoreSzenarien {
             CoreSzenarien q = new CoreSzenarien(); q.run(0.4); q.c.topPkg = "com.kinomap.training";
             t("Ohne erlaubte App-Steuerung kein Start", q.c.appCmd(FtmsData.OP_START, Double.NaN, "App") == FtmsData.RES_NOT_PERMITTED && q.c.hwStartAt == 0, "");
         }
+        { // 33 Band steht, obwohl LAEUFT (vom Motorboard gestoppt): nach 8 s Pause statt «läuft»; Startseite umstellen
+            CoreSzenarien s = new CoreSzenarien(); s.cmd("{\"c\":\"speed\",\"v\":6}"); s.startRun(); s.run(30);
+            boolean ran = "LAEUFT".equals(s.c.st);
+            s.b.running = false; s.run(6);
+            boolean still = "LAEUFT".equals(s.c.st);
+            s.run(20);
+            t("Band steht 8 s im Lauf: Pause statt «läuft»", ran && still && "PAUSE".equals(s.c.st) && s.b.speed < 0.3f, s.c.st + " v=" + s.b.speed);
+            String r1 = s.cmd("{\"c\":\"home\",\"on\":false}"); boolean off = !HomeScreen.ours;
+            String r2 = s.cmd("{\"c\":\"home\",\"on\":true}");
+            t("Startseite auf Hersteller und zurück", r1.contains("true") && off && r2.contains("true") && HomeScreen.ours && new JSONObject(s.c.stateJson(false)).optBoolean("home"), r1 + r2);
+        }
         { // 32 Apps schliessen: erst nach 2.5 s vorne, im Lauf bleiben Kinomap und Zwift offen, nach dem Lauf zu
             CoreSzenarien s = new CoreSzenarien(); s.run(0.4);
             java.util.List<String> R = android.app.ActivityManager.running, S = android.app.ActivityManager.stopped; R.clear(); S.clear();

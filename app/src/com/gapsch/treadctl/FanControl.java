@@ -60,7 +60,7 @@ public class FanControl {
         if (address.length() > 0) findConnect();   // nach Neustart von Konsole oder Bluetooth kennt Android den Adresstyp nur per Suche
         new Thread(new Runnable() { public void run() {
             while (true) {
-                try { Thread.sleep(100); pump(); } catch (Throwable e) {}
+                try { Thread.sleep(tx == null ? 1000 : 100); pump(); } catch (Throwable e) {}   // ohne Verbindung nur jede Sekunde wach
             }
         } }, "fan").start();
         new Thread(new Runnable() { public void run() {

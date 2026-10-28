@@ -109,6 +109,25 @@ public class MediaWatch {
         } catch (Throwable e) { return Core.err(String.valueOf(e)); }
     }
 
+    /** Knapper Zustand fuer den Player der Pille: ohne Quellenliste, Ausgaenge und Cover (keine Bitmaps je Abfrage). */
+    synchronized String statusLite() {
+        try {
+            JSONObject o = new JSONObject(); o.put("ok", true);
+            MediaController c = pick(sessions());
+            if (c == null) { o.put("active", false); return o.toString(); }
+            PlaybackState ps = c.getPlaybackState(); MediaMetadata md = c.getMetadata(); int st = ps == null ? 0 : ps.getState();
+            o.put("active", true); o.put("pkg", c.getPackageName()); o.put("app", appName(c.getPackageName()));
+            o.put("playing", st == PlaybackState.STATE_PLAYING || st == PlaybackState.STATE_BUFFERING);
+            if (md != null) {
+                o.put("title", nz(md.getString(MediaMetadata.METADATA_KEY_TITLE)));
+                String ar = md.getString(MediaMetadata.METADATA_KEY_ARTIST); if (ar == null) ar = md.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST);
+                if (ar == null) ar = md.getString(MediaMetadata.METADATA_KEY_AUTHOR);
+                o.put("artist", nz(ar));
+            }
+            return o.toString();
+        } catch (Throwable e) { return Core.err(String.valueOf(e)); }
+    }
+
     synchronized byte[] artwork() { return art; }
 
     String cmd(JSONObject j) {
