@@ -710,7 +710,7 @@ if (!ONLY.length) {
       all.subs.join('|') === 'Videos mit deinem Google-Konto|Musik und Playlists mit deinem Google-Konto|Filme, Serien und Live-TV vom Heimserver|Videostrecken aus aller Welt|Laufen in virtuellen Welten|Audiobookshelf vom Heimserver' &&
       km.pts.join('|') === 'y:Videostrecken weltweit|y:Tempo und Steigung über die Pille|y:Pille und Live-Verlauf darüber' &&
       zw1.pts.join('|') === 'y:Virtuelle Laufwelten|y:Tempo und Steigung über die Pille|y:Pille und Live-Verlauf darüber' &&
-      inc.dis && inc.sm === 'zuerst «Daten an Apps und Uhren» einschalten' && !inc2.dis && inc2.sm === 'bis 14 km/h und 10 %; Start nur an der Konsole, STOP immer' &&
+      inc.dis && inc.sm === 'zuerst «Daten an Apps und Uhren» einschalten' && !inc2.dis && inc2.sm === 'bis 14 km/h und 10 %; Start nur hier, STOP immer' &&
       on === 'true sichtbar als «Tread Control»' && flog === '[{"on":true},{"ctl":true}]';
     return { ok, d: `Start «${yh}»; Untertitel [${all.subs.join(' | ')}]; Abzeichen ${all.st}, Warnpunkte ${all.bad}; Kinomap [${km.pts.join('; ')}]; Zwift [${zw1.pts}]; Steuerung aus «${inc.sm}», nach «Daten an Apps» «${inc2.sm}»; ${on}; Befehle ${flog}` };
   });

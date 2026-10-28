@@ -1128,3 +1128,6 @@ svg.i.f{fill:currentColor;stroke:none}
 .pdlg .pscr .pkg{margin-left:0}
 .pdlg .seg{margin-left:0}
 .pdlg .seg button{white-space:nowrap}
+/* Einstellungen der App-Seite: alle Schalter ohne Scrollen sichtbar, sonst scrollt die Karte */
+.set{overflow-y:auto}
+.set .trow{min-height:60px;padding:5px 0}

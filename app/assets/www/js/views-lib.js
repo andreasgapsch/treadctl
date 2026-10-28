@@ -369,14 +369,14 @@
   };
 
   /* ================= Apps ================= */
-  var PREFS = [['pill', 'Steuer-Pille anzeigen', 'immer unten in allen Apps; Griff unten mittig: hochwischen zeigt, runterwischen versteckt'], ['pillGraph', 'Live-Verlauf einblenden', 'Tempo, Steigung, Puls über der Pille'],
+  var PREFS = [['pill', 'Steuer-Pille anzeigen', 'unten in allen Apps; hochwischen zeigt, runterwischen versteckt'], ['pillGraph', 'Live-Verlauf einblenden', 'Tempo, Steigung, Puls über der Pille'],
     ['autoCollapse', 'Automatisch einklappen', 'nach 6 s ohne Berührung'], ['hideBar', 'Herstellerleiste ausblenden', 'eigene Statuszeile oben, Apps im Vollbild']];
   // Laufband als Bluetooth-Geraet (FTMS und Laufsensor): Einstellungen liegen im Dienst, nicht in den Oberflaechen-Einstellungen
   function ftmsRows(f) {
     var on = !!(f && f.on), ctl = on && !!f.ctl, n = f && f.clients ? f.clients.length : 0;
     var sub1 = !f ? 'Dienst nicht erreichbar' : !on ? 'FTMS und Laufsensor für Uhren und Apps auf anderen Geräten' :
-      (n ? 'verbunden: ' + f.clients.map(function (c) { return c.name; }).join(', ') : /^fehler/.test(f.state) ? 'Störung: ' + f.state.replace(/^fehler: /, '') : 'sichtbar als «' + f.name + '»') + (f.radio === 'esp32' ? ' · Funkmodul ESP32' : '');
-    var sub2 = 'bis ' + (f ? f.maxS : 14) + ' km/h und ' + (f ? f.maxI : 10) + ' %; Start nur an der Konsole, STOP immer';
+      (n ? 'verbunden: ' + (n === 1 ? f.clients[0].name : n + ' Apps oder Uhren') : /^fehler/.test(f.state) ? 'Störung: ' + f.state.replace(/^fehler: /, '') : 'sichtbar als «' + f.name + '»') + (f.radio === 'esp32' && !n ? ' · Funkmodul ESP32' : '');
+    var sub2 = 'bis ' + (f ? f.maxS : 14) + ' km/h und ' + (f ? f.maxI : 10) + ' %; Start nur hier, STOP immer';
     return '<button class="trow" role="switch" data-f="on" aria-checked="' + on + '"' + (f ? '' : ' disabled') + '><div>Daten an Apps und Uhren<small data-k="fsub">' + esc(sub1) + '</small></div><span class="tg' + (on ? '' : ' off') + '"></span></button>' +
       (on ? '<button class="trow" role="switch" data-f="ctl" aria-checked="' + ctl + '"><div>Apps dürfen Tempo und Steigung steuern<small>' + esc(sub2) + '</small></div><span class="tg' + (ctl ? '' : ' off') + '"></span></button>' :
         '<button class="trow lk" role="switch" data-f="ctl" aria-checked="false" aria-disabled="true" disabled><div>Apps dürfen Tempo und Steigung steuern<small>zuerst «Daten an Apps und Uhren» einschalten</small></div><span class="tlk">' + I('lock') + '<span class="tg off"></span></span></button>') +
