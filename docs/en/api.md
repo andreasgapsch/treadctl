@@ -150,6 +150,17 @@ console itself (`lan: false`); `lan: true` opens it to apps in the Wi-Fi (PC, Ap
   30 s ("control lost" is sent to the app), no increases without a sign of life from the UI.
 - State: `appCtl` (control allowed), `app` (name of the app that controlled within the last 15 s), source `src: "app"`.
 - Command `appRelease`: "back to the console", blocks apps until the next start.
+- Start/resume from an app: only acknowledged while the belt is running (apps expect success), otherwise "not permitted".
+- Opcode `0x11` (Indoor Bike Simulation, Zwift): the grade (bytes 3 and 4, 0.01 %) acts as an incline command, downhill
+  becomes 0. Wahoo Run service (`A026EE0E-…`, E03E write, E03D notify): Zwift sends `11 lo hi` (0.01 %), DIRCON also
+  `46 lo hi`; same rules, no answer over Bluetooth, `FE op 02` over DIRCON.
+- Zwift profile (local only): `POST /api/ftms {"name": …, "mfr": …}` sets the advertised name and the Device
+  Information manufacturer.
+- Footpod for Garmin: sensor location "top of shoe", appearance 0x0441, "Just Works" bonding with stored keys (ESP32),
+  battery service 100 %. Watch: pair the foot pod, speed and distance source "Always", calibration 100 %, auto
+  calibration off.
+- Load test: `adb forward tcp:36866 tcp:36866 && TREADXP_ADB=… python3 app/tools/ftms-last.py` (4 Wi-Fi apps,
+  20 commands/s, 200 reconnects; measures CPU, memory, threads and files of the service).
 - The manufacturer's FTMS service (`GATTServerService`, process `com.jhtp.atsoul.gattserverservice`) is stopped and
   checked every 30 s, because its control point writes straight to the bus and starts via the GO key.
   `keepJht: true` keeps it running (starts it again).

@@ -126,7 +126,7 @@ public class UsbBridge {
 
     /** Name und alle lesbaren Werte an das Board (nach dem Verbinden und bei Aenderungen). */
     void hello() {
-        send("H " + f.name);
+        send("H " + f.name); send("D " + f.mfr);
         for (UUID u : new UUID[] { FtmsData.FEATURE, FtmsData.SPEED_RANGE, FtmsData.INCL_RANGE, FtmsData.STATUS_TRAIN, FtmsData.RSC_FEAT, FtmsData.RSC_LOC }) {
             byte[] v = f.read(u); if (v != null) send("V " + u16(u) + " " + hex(v));
         }
@@ -150,6 +150,7 @@ public class UsbBridge {
             switch (p[0]) {
                 case "R": fw = p.length > 2 ? p[2] : ""; Log.i(T, "esp32: bereit, Firmware " + fw); break;
                 case "A": break;   // Antwort auf das Lebenszeichen
+                case "G": f.wahooGrade(unhex(p.length > 2 ? p[2] : ""), "Zwift (Bluetooth)"); break;   // Steigung ueber den Wahoo-Run-Dienst
                 case "C": clients.put(Integer.parseInt(p[1]), p.length > 2 ? p[2] : ""); Log.i(T, "esp32: Gegenstelle " + l.substring(2)); break;
                 case "X": { int c = Integer.parseInt(p[1]); clients.remove(c); subs.remove(c); Log.i(T, "esp32: getrennt " + c); break; }
                 case "S": { int c = Integer.parseInt(p[1]); int on = Integer.parseInt(p[3]); Integer n = subs.get(c); subs.put(c, Math.max(0, (n == null ? 0 : n) + (on != 0 ? 1 : -1))); break; }

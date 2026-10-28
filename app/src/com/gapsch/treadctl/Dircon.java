@@ -32,13 +32,15 @@ public class Dircon {
     static final int R_OK = 0, R_UNKNOWN = 1, R_ERROR = 2, R_NO_SERVICE = 3, R_NO_CHAR = 4, R_NOT_SUPPORTED = 5, R_WRITE_FAILED = 6;
     static final int P_READ = 1, P_WRITE = 2, P_NOTIFY = 4, P_INDICATE = 8;
     // Dienst -> Merkmale mit Eigenschaften (wie im Bluetooth-Server)
-    static final UUID[] SERVICES = { FtmsData.FTMS, FtmsData.RSC };
+    static final UUID[] SERVICES = { FtmsData.FTMS, FtmsData.RSC, FtmsData.WAHOO };
     static final Object[][] CHARS = {
         { FtmsData.FTMS, FtmsData.FEATURE, P_READ }, { FtmsData.FTMS, FtmsData.TREAD, P_NOTIFY },
         { FtmsData.FTMS, FtmsData.STATUS_TRAIN, P_READ | P_NOTIFY }, { FtmsData.FTMS, FtmsData.SPEED_RANGE, P_READ },
         { FtmsData.FTMS, FtmsData.INCL_RANGE, P_READ }, { FtmsData.FTMS, FtmsData.CONTROL, P_WRITE | P_INDICATE },
         { FtmsData.FTMS, FtmsData.MACHINE, P_NOTIFY },
-        { FtmsData.RSC, FtmsData.RSC_MEAS, P_NOTIFY }, { FtmsData.RSC, FtmsData.RSC_FEAT, P_READ }, { FtmsData.RSC, FtmsData.RSC_LOC, P_READ } };
+        { FtmsData.RSC, FtmsData.RSC_MEAS, P_NOTIFY }, { FtmsData.RSC, FtmsData.RSC_FEAT, P_READ }, { FtmsData.RSC, FtmsData.RSC_LOC, P_READ },
+        // Wahoo-Run-Dienst wie bei einem echten KICKR RUN ueber DIRCON (NordicFTMS): E03E schreiben und melden, E03D melden
+        { FtmsData.WAHOO, FtmsData.WAHOO_W, P_WRITE | P_NOTIFY }, { FtmsData.WAHOO, FtmsData.WAHOO_N, P_NOTIFY } };
 
     final Context ctx; final FtmsServer f;
     volatile boolean lan; volatile String state = "aus";
@@ -99,7 +101,7 @@ public class Dircon {
         NsdServiceInfo si = new NsdServiceInfo();
         si.setServiceName(name.replace(' ', '-'));   // manche Apps setzen Leerzeichen in Bindestriche um
         si.setServiceType("_wahoo-fitness-tnp._tcp"); si.setPort(PORT);
-        si.setAttribute("ble-service-uuids", (FtmsData.FTMS + "," + FtmsData.RSC).toUpperCase(java.util.Locale.ROOT));
+        si.setAttribute("ble-service-uuids", (FtmsData.FTMS + "," + FtmsData.RSC + "," + FtmsData.WAHOO).toUpperCase(java.util.Locale.ROOT));
         si.setAttribute("mac-address", "00:00:00:00:00:00");
         si.setAttribute("serial-number", "treadctl");
         reg = new NsdManager.RegistrationListener() {
@@ -176,6 +178,11 @@ public class Dircon {
                 if ((p & P_WRITE) == 0) { c.send(id, seq, R_NOT_SUPPORTED, null); return; }
                 byte[] v = new byte[d.length - 16]; System.arraycopy(d, 16, v, 0, v.length);
                 c.send(id, seq, R_OK, uuid(u));
+                if (FtmsData.WAHOO_W.equals(u)) {   // Zwift-Steigung; Antwort FE op 02 wie NordicFTMS
+                    f.wahooGrade(v, "Zwift (WLAN)");
+                    if (c.subs.contains(FtmsData.WAHOO_W)) c.send(M_NOTIFY, 0, R_OK, cat(uuid(FtmsData.WAHOO_W), new byte[] { (byte) 0xFE, v[0], 0x02 }));
+                    return;
+                }
                 byte[] r = f.control(v, c.who);   // Antwort des Steuerpunkts als Meldung, wie eine Bluetooth-Anzeige
                 if (c.subs.contains(FtmsData.CONTROL)) c.send(M_NOTIFY, 0, R_OK, cat(uuid(FtmsData.CONTROL), r));
                 return;

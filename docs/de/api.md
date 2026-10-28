@@ -150,6 +150,16 @@ von der Konsole selbst an (`lan: false`); `lan: true` öffnet es für Apps im WL
   (Meldung «Steuerung verloren» an die App), ohne Lebenszeichen der Oberfläche nicht hochregeln.
 - Zustand: `appCtl` (Steuerung erlaubt), `app` (Name der App, die in den letzten 15 s gesteuert hat), Quelle `src: "app"`.
 - Befehl `appRelease`: «Zurück an Konsole», sperrt Apps bis zum nächsten Start.
+- Start/Weiter einer App: bei laufendem Band nur bestätigt (Apps erwarten Erfolg), sonst «nicht erlaubt».
+- Opcode `0x11` (Indoor Bike Simulation, Zwift): die Steigung (Bytes 3 und 4, 0.01 %) wirkt wie ein Steigungsbefehl,
+  Gefälle wird 0. Wahoo-Run-Dienst (`A026EE0E-…`, E03E schreiben, E03D melden): Zwift schickt dort `11 lo hi`
+  (0.01 %), DIRCON auch `46 lo hi`; gleiche Regeln, über Bluetooth ohne Antwort, über DIRCON `FE op 02`.
+- Zwift-Profil (nur lokal): `POST /api/ftms {"name": …, "mfr": …}` setzt Werbenamen und Hersteller in Device Information.
+- Laufsensor für Garmin: Sensorort «auf dem Schuh», Erscheinungsbild 0x0441, Koppeln ohne Eingabe mit gespeicherten
+  Schlüsseln (ESP32), Akkudienst 100 %. Uhr: Laufsensor koppeln, Tempo und Distanz «Immer», Kalibrierung 100 %,
+  automatische Kalibrierung aus.
+- Last: `adb forward tcp:36866 tcp:36866 && TREADXP_ADB=… python3 app/tools/ftms-last.py` (4 WLAN-Apps, 20 Befehle/s,
+  200 Verbindungswechsel; misst CPU, Speicher, Threads und Dateien des Dienstes).
 - Der FTMS-Dienst des Herstellers (`GATTServerService`, Prozess `com.jhtp.atsoul.gattserverservice`) wird angehalten
   und alle 30 s geprüft, weil sein Steuerpunkt direkt auf den Bus schreibt und einen Start über die GO-Taste auslöst.
   `keepJht: true` lässt ihn laufen (startet ihn wieder).

@@ -42,7 +42,7 @@ public class FtmsServer {
     static final String T = "TREADCTL";
     static final ComponentName JHT = new ComponentName("com.jht.atsoul.nezuko", "com.jht.atsoul.service.gattserver.GATTServerService");
     final Context ctx; final Core core; final SharedPreferences prefs;
-    volatile boolean on, ctl, keepJht, dirconOn, lan; volatile String name; volatile float maxS, maxI;
+    volatile boolean on, ctl, keepJht, dirconOn, lan; volatile String name, mfr; volatile float maxS, maxI;
     final Dircon dircon; final UsbBridge usb;
     volatile String state = "aus"; volatile boolean advertising;
     BluetoothGattServer server; BluetoothLeAdvertiser adv; String oldName;
@@ -51,13 +51,14 @@ public class FtmsServer {
     final Map<String, String> names = new HashMap<String, String>();
     final Semaphore sent = new Semaphore(0);
     Thread loop; long lastManual; String lastSt = ""; int lastTrain = -1; volatile long advRestartAt;
-    final Object tx = new Object();   // Bluetooth-Meldungen nacheinander (eine Bestaetigung je Meldung)
+    final Object tx = new Object();
+    double lastWg = Double.NaN; int lastWr = -1;   // Bluetooth-Meldungen nacheinander (eine Bestaetigung je Meldung)
 
     FtmsServer(Context c, Core core) {
         ctx = c; this.core = core; prefs = c.getSharedPreferences("ftms", Context.MODE_PRIVATE);
         on = prefs.getBoolean("on", false); ctl = prefs.getBoolean("ctl", false); keepJht = prefs.getBoolean("keepJht", false);
         name = prefs.getString("name", "Tread Control"); maxS = prefs.getFloat("maxS", 14f); maxI = prefs.getFloat("maxI", 10f);
-        dirconOn = prefs.getBoolean("dircon", false); lan = prefs.getBoolean("lan", false);
+        dirconOn = prefs.getBoolean("dircon", false); lan = prefs.getBoolean("lan", false); mfr = prefs.getString("mfr", "Tread Control");
         dircon = new Dircon(c, this); dircon.lan = lan; usb = new UsbBridge(c, this);
         applyCore();
     }
@@ -139,8 +140,15 @@ public class FtmsServer {
         s.addCharacteristic(ch(FtmsData.RSC_LOC, BluetoothGattCharacteristic.PROPERTY_READ, false));
         return s;
     }
+    BluetoothGattService wahooService() {
+        BluetoothGattService s = new BluetoothGattService(FtmsData.WAHOO, BluetoothGattService.SERVICE_TYPE_PRIMARY);
+        BluetoothGattCharacteristic n = ch(FtmsData.WAHOO_N, BluetoothGattCharacteristic.PROPERTY_READ | BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE | BluetoothGattCharacteristic.PROPERTY_NOTIFY, true);
+        n.setValue(new byte[] { 0 }); s.addCharacteristic(n);
+        s.addCharacteristic(ch(FtmsData.WAHOO_W, BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE | BluetoothGattCharacteristic.PROPERTY_INDICATE, true));
+        return s;
+    }
     static BluetoothGattCharacteristic ch(UUID u, int props, boolean ccc) {
-        int perm = (props & BluetoothGattCharacteristic.PROPERTY_WRITE) != 0 ? BluetoothGattCharacteristic.PERMISSION_WRITE | BluetoothGattCharacteristic.PERMISSION_READ : BluetoothGattCharacteristic.PERMISSION_READ;
+        int perm = (props & (BluetoothGattCharacteristic.PROPERTY_WRITE | BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE)) != 0 ? BluetoothGattCharacteristic.PERMISSION_WRITE | BluetoothGattCharacteristic.PERMISSION_READ : BluetoothGattCharacteristic.PERMISSION_READ;
         BluetoothGattCharacteristic c = new BluetoothGattCharacteristic(u, props, perm);
         if (ccc) c.addDescriptor(new BluetoothGattDescriptor(FtmsData.CCC, BluetoothGattDescriptor.PERMISSION_READ | BluetoothGattDescriptor.PERMISSION_WRITE));
         return c;
@@ -153,7 +161,7 @@ public class FtmsServer {
             if (adv == null) { state = "fehler: keine Werbung moeglich"; return; }
             if (oldName == null) oldName = a.getName();
             if (!name.equals(a.getName())) a.setName(name);   // Name, den Uhren und Apps anzeigen
-            AdvertiseSettings st = new AdvertiseSettings.Builder().setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
+            AdvertiseSettings st = new AdvertiseSettings.Builder().setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)   // ~100 ms wie die Vorbilder: Apps finden das Band schneller
                 .setConnectable(true).setTimeout(0).setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM).build();
             AdvertiseData d = new AdvertiseData.Builder().setIncludeDeviceName(false)
                 .addServiceUuid(new ParcelUuid(FtmsData.FTMS)).addServiceUuid(new ParcelUuid(FtmsData.RSC))
@@ -177,6 +185,7 @@ public class FtmsServer {
         @Override public void onServiceAdded(int status, BluetoothGattService s) {
             if (status != BluetoothGatt.GATT_SUCCESS) { state = "fehler: Dienst " + status; return; }
             if (FtmsData.FTMS.equals(s.getUuid())) { try { server.addService(rscService()); } catch (Throwable e) {} }
+            else if (FtmsData.RSC.equals(s.getUuid())) { try { server.addService(wahooService()); } catch (Throwable e) {} }
             else startAdv();
         }
         @Override public void onConnectionStateChange(BluetoothDevice d, int status, int ns) {
@@ -209,6 +218,11 @@ public class FtmsServer {
             Log.i(T, "ftms: " + d.getAddress() + (en ? " abonniert " : " beendet ") + cu.toString().substring(4, 8));
         }
         @Override public void onCharacteristicWriteRequest(BluetoothDevice d, int id, BluetoothGattCharacteristic c, boolean prep, boolean resp, int off, byte[] v) {
+            if (FtmsData.WAHOO_W.equals(c.getUuid()) || FtmsData.WAHOO_N.equals(c.getUuid())) {
+                if (resp) server.sendResponse(d, id, BluetoothGatt.GATT_SUCCESS, 0, null);
+                String who; synchronized (subs) { who = names.get(d.getAddress()); }
+                wahooGrade(v, who == null ? "Zwift" : who); return;
+            }
             if (!FtmsData.CONTROL.equals(c.getUuid())) { if (resp) server.sendResponse(d, id, BluetoothGatt.GATT_WRITE_NOT_PERMITTED, 0, null); return; }
             if (resp) server.sendResponse(d, id, BluetoothGatt.GATT_SUCCESS, 0, null);
             String who; synchronized (subs) { who = names.get(d.getAddress()); }
@@ -220,15 +234,25 @@ public class FtmsServer {
     /** Befehl am Steuerpunkt (Bluetooth oder DIRCON) durch die Regeln der Steuerung; Antwort 0x80 fuer die App. */
     byte[] control(byte[] v, String who) {
         FtmsData.Cp cp = FtmsData.parse(v);
-        int res = cp.bad ? FtmsData.RES_INVALID : core.appCmd(cp.op, cp.v, who);
+        // Steigung aus der Simulation (Zwift) wie ein Steigungsbefehl: Gefaelle wird 0, mehr als das Band kann wird begrenzt
+        int op = cp.op == FtmsData.OP_SIM ? FtmsData.OP_INCL : cp.op; double val = cp.op == FtmsData.OP_SIM ? Math.max(0, Math.min(Core.I_MAX, cp.v)) : cp.v;
+        int res = cp.bad ? FtmsData.RES_INVALID : core.appCmd(op, val, who);
         Log.i(T, "ftms: steuerpunkt " + cp.op + " " + cp.v + " von " + who + " -> " + res);
         if (res == FtmsData.RES_OK) {
             if (cp.op == FtmsData.OP_SPEED) emit(FtmsData.MACHINE, FtmsData.machineSpeed(Math.min(cp.v, core.appMaxS)));
-            if (cp.op == FtmsData.OP_INCL) emit(FtmsData.MACHINE, FtmsData.machineIncl(Math.max(0, Math.min(cp.v, core.appMaxI))));
+            if (op == FtmsData.OP_INCL) emit(FtmsData.MACHINE, FtmsData.machineIncl(Math.max(0, Math.min(val, core.appMaxI))));
         }
         return FtmsData.response(cp.op, res);
     }
-    /** Meldung an alle Abonnenten, Bluetooth und DIRCON. */
+    /** Steigung von Zwift ueber den Wahoo-Run-Dienst (Bluetooth, DIRCON, ESP32): wie ein Steigungsbefehl durch die Regeln
+     *  der Steuerung, Gefaelle wird 0, mehr als das Band kann wird begrenzt. Zwift erwartet keine Antwort. */
+    int wahooGrade(byte[] v, String who) {
+        double g = FtmsData.wahooGrade(v);
+        if (Double.isNaN(g)) return FtmsData.RES_UNSUPPORTED;
+        int res = core.appCmd(FtmsData.OP_INCL, Math.max(0, Math.min(Core.I_MAX, g)), who);
+        if (g != lastWg || res != lastWr) { Log.i(T, "ftms: wahoo-steigung " + g + " von " + who + " -> " + res); lastWg = g; lastWr = res; }   // Zwift schickt sie fast jede Sekunde
+        return res;
+    }
     /** Funkmodul ESP32 gesteckt oder entfernt: eigenes Bluetooth der Konsole aus bzw. wieder an. */
     void onRadio(final boolean esp) {
         new Thread(new Runnable() { public void run() { restart(); if (esp) usb.hello(); } }).start();
@@ -298,7 +322,7 @@ public class FtmsServer {
     String status() {
         try {
             JSONObject o = new JSONObject(); o.put("ok", true);
-            o.put("on", on); o.put("ctl", ctl); o.put("keepJht", keepJht); o.put("name", name); o.put("maxS", maxS); o.put("maxI", maxI);
+            o.put("on", on); o.put("ctl", ctl); o.put("keepJht", keepJht); o.put("name", name); o.put("mfr", mfr); o.put("maxS", maxS); o.put("maxI", maxI);
             o.put("state", state); o.put("advertising", advertising);
             JSONArray cl = new JSONArray(); synchronized (subs) { for (Map.Entry<String, Set<UUID>> e : subs.entrySet()) if (!e.getValue().isEmpty()) cl.put(new JSONObject().put("addr", e.getKey()).put("name", names.get(e.getKey()))); }
             for (Dircon.Client c : dircon.clients) cl.put(new JSONObject().put("addr", String.valueOf(c.s.getInetAddress())).put("name", c.who).put("wlan", true));
@@ -317,10 +341,11 @@ public class FtmsServer {
         if (j.has("dircon")) dirconOn = j.optBoolean("dircon");
         if (j.has("lan")) { lan = j.optBoolean("lan"); dircon.lan = lan; }
         if (j.has("name")) { String n = j.optString("name").replaceAll("[^\\p{L}\\p{N} _.-]", "").trim(); if (n.length() > 0) name = n.length() > 20 ? n.substring(0, 20) : n; }
+        if (j.has("mfr")) { String m = j.optString("mfr").replaceAll("[^\\p{L}\\p{N} _.-]", "").trim(); if (m.length() > 0) mfr = m.length() > 30 ? m.substring(0, 30) : m; }
         if (j.has("maxS")) maxS = (float) Math.max(Core.S_MIN, Math.min(Core.S_MAX, j.optDouble("maxS", maxS)));
         if (j.has("maxI")) maxI = (float) Math.max(0, Math.min(Core.I_MAX, j.optDouble("maxI", maxI)));
         prefs.edit().putBoolean("on", on).putBoolean("ctl", ctl).putBoolean("keepJht", keepJht).putString("name", name)
-            .putFloat("maxS", maxS).putFloat("maxI", maxI).putBoolean("dircon", dirconOn).putBoolean("lan", lan).apply();
+            .putFloat("maxS", maxS).putFloat("maxI", maxI).putBoolean("dircon", dirconOn).putBoolean("lan", lan).putString("mfr", mfr).apply();
         applyCore();
         if (keepJht && !wasKeep) jhtRestore();
         if (usb.connected) new Thread(new Runnable() { public void run() { usb.hello(); } }).start();   // Name, Grenzen, Steuerung ans Board

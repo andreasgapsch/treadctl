@@ -568,7 +568,8 @@ public class Core implements Runnable {
     int appCmd(int op, double v, String app) {
         if (op == FtmsData.OP_STOP) { stopNow("app"); return FtmsData.RES_OK; }
         synchronized (lock) {
-            if (op == FtmsData.OP_START) { log("app-start abgewiesen", tSpeed); return FtmsData.RES_NOT_PERMITTED; }
+            // Start/Weiter: laeuft das Band schon, nur bestaetigen (Apps erwarten Erfolg); sonst nie, der Start bleibt an der Konsole
+            if (op == FtmsData.OP_START) { if (LAEUFT.equals(st)) return FtmsData.RES_OK; log("app-start abgewiesen", tSpeed); return FtmsData.RES_NOT_PERMITTED; }
             if (op == FtmsData.OP_REQUEST || op == FtmsData.OP_RESET) return appCtl && !appBlocked ? FtmsData.RES_OK : FtmsData.RES_NOT_PERMITTED;
             if (op != FtmsData.OP_SPEED && op != FtmsData.OP_INCL) return FtmsData.RES_UNSUPPORTED;
             if (Double.isNaN(v)) return FtmsData.RES_INVALID;

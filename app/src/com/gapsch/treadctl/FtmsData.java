@@ -11,9 +11,20 @@ public class FtmsData {
     static final UUID FEATURE = u16(0x2ACC), TREAD = u16(0x2ACD), STATUS_TRAIN = u16(0x2AD3), SPEED_RANGE = u16(0x2AD4),
         INCL_RANGE = u16(0x2AD5), CONTROL = u16(0x2AD9), MACHINE = u16(0x2ADA);
     static final UUID RSC_MEAS = u16(0x2A53), RSC_FEAT = u16(0x2A54), RSC_LOC = u16(0x2A5D);
+    // Wahoo-Run-Dienst: Zwift schickt die Steigung der Strecke hierueber (11 lo hi, sint16 in 0.01 %)
+    static final UUID WAHOO = UUID.fromString("a026ee0e-0a7d-4ab3-97fa-f1500f9feb8b"), WAHOO_N = UUID.fromString("a026e03d-0a7d-4ab3-97fa-f1500f9feb8b"),
+        WAHOO_W = UUID.fromString("a026e03e-0a7d-4ab3-97fa-f1500f9feb8b");
+    /** Steigung aus einem Wahoo-Befehl in %, NaN wenn es keiner ist: 0x11 (0.01 %) oder 0x46 (0..65535 auf -100..100 %). */
+    static double wahooGrade(byte[] b) {
+        if (b == null || b.length < 3) return Double.NaN;
+        int raw = (b[1] & 0xFF) | (b[2] & 0xFF) << 8;
+        if ((b[0] & 0xFF) == 0x11) return (short) raw / 100.0;
+        if ((b[0] & 0xFF) == 0x46) return (raw / 65535.0 * 2 - 1) * 100;
+        return Double.NaN;
+    }
 
     // Steuerpunkt: Befehle und Ergebnisse
-    static final int OP_REQUEST = 0x00, OP_RESET = 0x01, OP_SPEED = 0x02, OP_INCL = 0x03, OP_START = 0x07, OP_STOP = 0x08, OP_RESPONSE = 0x80;
+    static final int OP_REQUEST = 0x00, OP_RESET = 0x01, OP_SPEED = 0x02, OP_INCL = 0x03, OP_START = 0x07, OP_STOP = 0x08, OP_SIM = 0x11, OP_RESPONSE = 0x80;
     static final int RES_OK = 0x01, RES_UNSUPPORTED = 0x02, RES_INVALID = 0x03, RES_FAILED = 0x04, RES_NOT_PERMITTED = 0x05;
     // Maschinenzustand (0x2ADA)
     static final int MS_RESET = 0x01, MS_STOP_PAUSE = 0x02, MS_SAFETY = 0x03, MS_START = 0x04, MS_SPEED = 0x05, MS_INCL = 0x06, MS_LOST = 0xFF;
@@ -76,6 +87,8 @@ public class FtmsData {
         if (c.op == OP_SPEED) { if (b.length < 3) c.bad = true; else c.v = ((b[1] & 0xFF) | (b[2] & 0xFF) << 8) / 100.0; }
         else if (c.op == OP_INCL) { if (b.length < 3) c.bad = true; else c.v = (short) ((b[1] & 0xFF) | (b[2] & 0xFF) << 8) / 10.0; }
         else if (c.op == OP_STOP) { c.v = b.length >= 2 ? (b[1] & 0xFF) : 1; }
+        // Indoor Bike Simulation (Zwift): Wind sint16, Steigung sint16 in 0.01 %, Crr, Cw; fuer das Band zaehlt nur die Steigung
+        else if (c.op == OP_SIM) { if (b.length < 5) c.bad = true; else c.v = (short) ((b[3] & 0xFF) | (b[4] & 0xFF) << 8) / 100.0; }
         return c;
     }
 
@@ -97,7 +110,7 @@ public class FtmsData {
         return clamp(Math.round(150 + (kmh - 7) * 3), 150, 185);
     }
     static byte[] rscFeature() { return new byte[] { 0x06, 0x00 }; }   // Gesamtdistanz, Gehen/Laufen
-    static byte[] rscLocation() { return new byte[] { 0x00 }; }      // andere
+    static byte[] rscLocation() { return new byte[] { 0x01 }; }      // auf dem Schuh (wie gaengige Laufsensoren, Garmin)
 
     /** Service-Daten der Werbung: verfuegbar, Laufband. */
     static byte[] advData() { return new byte[] { 0x01, 0x01, 0x00 }; }

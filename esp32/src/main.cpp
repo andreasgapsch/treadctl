@@ -2,6 +2,7 @@
 // Das Board ist ein reiner Vermittler: Werte, Regeln und Entscheide liegen in Tread Control auf der Konsole
 // (FtmsServer, Core.appCmd). Ueber den nativen USB-Anschluss kommen Zeilen von der Konsole:
 //   H <name>                  Name fuer Werbung und GAP (bis 20 Zeichen), startet die Werbung
+//   D <hersteller>            Herstellername in Device Information (z. B. fuer das Zwift-Profil)
 //   V <uuid16> <hex>          lesbarer Wert (Feature, Bereiche, Trainingszustand, Laufsensor-Merkmale)
 //   N <uuid16> <hex>          Meldung an alle Abonnenten (Laufdaten, Laufsensor, Zustand)
 //   I <conn> <hex>            Antwort des Steuerpunkts 0x2AD9 als Anzeige an die App, die den Befehl geschickt hat
@@ -13,18 +14,22 @@
 //   X <conn>                                 getrennt
 //   S <conn> <uuid16> <0|1|2>                Abo aus/Meldung/Anzeige
 //   W <conn> <hex>                           Befehl am Steuerpunkt (nur weitergeleitet, die Konsole entscheidet)
+//   G <conn> <hex>                           Steigung von Zwift ueber den Wahoo-Run-Dienst (11 lo hi, 0.01 %), ohne Antwort
 // Ohne Lebenszeichen der Konsole beantwortet das Board den Steuerpunkt selbst mit «fehlgeschlagen» und meldet
 // keine Laufdaten mehr, damit eine App nie auf veraltete Werte reagiert.
 #include <Arduino.h>
 #include <NimBLEDevice.h>
+#include "nimble/nimble/host/services/gap/include/services/gap/ble_svc_gap.h"
 
-static const char *VERSION = "1.1.0";
+static const char *VERSION = "1.2.0";
 static const uint16_t U_FTMS = 0x1826, U_RSC = 0x1814, U_DIS = 0x180A;
 static const uint16_t U_FEAT = 0x2ACC, U_TREAD = 0x2ACD, U_TRAIN = 0x2AD3, U_SPEED = 0x2AD4, U_INCL = 0x2AD5,
                       U_CTRL = 0x2AD9, U_MACH = 0x2ADA, U_RSCM = 0x2A53, U_RSCF = 0x2A54, U_RSCL = 0x2A5D;
 
 NimBLEServer *srv;
-NimBLECharacteristic *cFeat, *cTread, *cTrain, *cSpeed, *cIncl, *cCtrl, *cMach, *cRscM, *cRscF, *cRscL;
+NimBLECharacteristic *cFeat, *cTread, *cTrain, *cSpeed, *cIncl, *cCtrl, *cMach, *cRscM, *cRscF, *cRscL, *cMfr, *cWahooN, *cWahooW;
+// Wahoo-Run-Dienst: ueber ihn schickt Zwift die Steigung der Strecke (wie qdomyos-zwift und ESPHome-Treadmill-FTMS)
+static const char *U_WAHOO = "A026EE0E-0A7D-4AB3-97FA-F1500F9FEB8B", *U_WAHOO_N = "A026E03D-0A7D-4AB3-97FA-F1500F9FEB8B", *U_WAHOO_W = "A026E03E-0A7D-4AB3-97FA-F1500F9FEB8B";
 String name = "Tread Control";
 uint32_t lastPing = 0;
 bool started = false, online = false;
@@ -56,6 +61,7 @@ static NimBLECharacteristic *byUuid(uint16_t u) {
 class SrvCb : public NimBLEServerCallbacks {
   void onConnect(NimBLEServer *s, ble_gap_conn_desc *d) override {
     Serial.printf("C %u %s\n", d->conn_handle, NimBLEAddress(d->peer_ota_addr).toString().c_str());
+    s->updateConnParams(d->conn_handle, 12, 24, 0, 180);   // 15 bis 30 ms, Abbruch nach 1.8 s (wie gaengige Laufsensoren)
     if (s->getConnectedCount() < CONFIG_BT_NIMBLE_MAX_CONNECTIONS) NimBLEDevice::startAdvertising();   // Uhr und App gleichzeitig
   }
   void onDisconnect(NimBLEServer *s, ble_gap_conn_desc *d) override {
@@ -72,6 +78,11 @@ static void indicateTo(uint16_t conn, const uint8_t *v, size_t n) {
 
 class ChrCb : public NimBLECharacteristicCallbacks {
   void onWrite(NimBLECharacteristic *c, ble_gap_conn_desc *d) override {
+    if (c == cWahooW) {   // Zwift: Steigung 11 lo hi; nur weiterleiten, die Konsole entscheidet, keine Antwort noetig
+      std::string w = c->getValue();
+      if (online && w.size() >= 3 && (uint8_t)w[0] == 0x11) Serial.printf("G %u %s\n", d->conn_handle, hex(w).c_str());
+      return;
+    }
     if (c != cCtrl) return;
     std::string v = c->getValue();
     if (!online) {   // Konsole stumm: nichts weiterleiten, sofort «fehlgeschlagen»
@@ -98,6 +109,7 @@ static void advertise() {
   a->stop();
   NimBLEAdvertisementData ad, sr;
   ad.setFlags(BLE_HS_ADV_F_DISC_GEN | BLE_HS_ADV_F_BREDR_UNSUP);
+  ad.setAppearance(0x0441);   // Laufsensor im Schuh: Uhren erkennen ihn als Laufsensor
   ad.setCompleteServices16({NimBLEUUID(U_FTMS), NimBLEUUID(U_RSC)});
   const uint8_t sd[3] = {0x01, 0x01, 0x00};   // FTMS-Servicedaten: verfuegbar, Laufband
   ad.setServiceData(NimBLEUUID(U_FTMS), std::string((const char *)sd, 3));
@@ -115,6 +127,7 @@ static void handle(String l) {
   if (!online) { online = true; }
   if (k == 'P') { Serial.print("A\n"); return; }
   if (k == '?') { Serial.printf("R tread-control-esp32 %s\n", VERSION); return; }
+  if (k == 'D') { String m = l.substring(2); m.trim(); if (m.length() > 0 && m.length() <= 30) cMfr->setValue(m.c_str()); return; }
   if (k == 'H') {
     String n = l.substring(2); n.trim();
     if (n.length() > 0 && n.length() <= 20) name = n;
@@ -149,6 +162,10 @@ void setup() {
   Serial.setTxTimeoutMs(0);   // ohne lesende Gegenstelle nie blockieren
   NimBLEDevice::init(name.c_str());
   NimBLEDevice::setPower(ESP_PWR_LVL_P6);
+  // Koppeln ohne Eingabe («Just Works») mit gespeicherten Schluesseln: Uhren finden den Laufsensor wieder
+  NimBLEDevice::setSecurityAuth(true, false, true);
+  NimBLEDevice::setSecurityIOCap(BLE_HS_IO_NO_INPUT_OUTPUT);
+  ble_svc_gap_device_appearance_set(0x0441);
   srv = NimBLEDevice::createServer();
   srv->setCallbacks(new SrvCb());
   NimBLEService *f = srv->createService(NimBLEUUID(U_FTMS));
@@ -164,15 +181,23 @@ void setup() {
   cRscF = add(r, U_RSCF, NIMBLE_PROPERTY::READ);
   cRscL = add(r, U_RSCL, NIMBLE_PROPERTY::READ);
   NimBLEService *dis = srv->createService(NimBLEUUID(U_DIS));
-  dis->createCharacteristic(NimBLEUUID((uint16_t)0x2A29), NIMBLE_PROPERTY::READ)->setValue("Tread Control");
+  cMfr = dis->createCharacteristic(NimBLEUUID((uint16_t)0x2A29), NIMBLE_PROPERTY::READ); cMfr->setValue("Tread Control");
   dis->createCharacteristic(NimBLEUUID((uint16_t)0x2A24), NIMBLE_PROPERTY::READ)->setValue("ESP32-S3 Bridge");
   dis->createCharacteristic(NimBLEUUID((uint16_t)0x2A26), NIMBLE_PROPERTY::READ)->setValue(VERSION);
   // Vorgaben bis zur ersten Meldung der Konsole: Bereiche 0.8 bis 14 km/h und 0 bis 10 %, keine Steuerung, Ruhe
   const uint8_t feat[8] = {0x0C, 0x16, 0, 0, 0, 0, 0, 0}, spd[6] = {80, 0, 0x78, 0x05, 10, 0}, inc[6] = {0, 0, 100, 0, 5, 0};
-  const uint8_t train[2] = {0, 1}, rscf[2] = {6, 0}, rscl[1] = {0};
+  const uint8_t train[2] = {0, 1}, rscf[2] = {6, 0}, rscl[1] = {1};   // Sensor auf dem Schuh
   cFeat->setValue(feat, 8); cSpeed->setValue(spd, 6); cIncl->setValue(inc, 6); cTrain->setValue(train, 2);
   cRscF->setValue(rscf, 2); cRscL->setValue(rscl, 1);
-  f->start(); r->start(); dis->start();
+  NimBLEService *bat = srv->createService(NimBLEUUID((uint16_t)0x180F));   // Uhren fragen den Akkustand ab
+  const uint8_t full[1] = {100};
+  bat->createCharacteristic(NimBLEUUID((uint16_t)0x2A19), NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY)->setValue(full, 1);
+  NimBLEService *w = srv->createService(NimBLEUUID(U_WAHOO));
+  cWahooN = w->createCharacteristic(NimBLEUUID(U_WAHOO_N), NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE_NR | NIMBLE_PROPERTY::NOTIFY);
+  const uint8_t zero[1] = {0}; cWahooN->setValue(zero, 1);
+  cWahooW = w->createCharacteristic(NimBLEUUID(U_WAHOO_W), NIMBLE_PROPERTY::WRITE_NR | NIMBLE_PROPERTY::INDICATE);
+  cWahooW->setCallbacks(&chrCb);
+  f->start(); r->start(); dis->start(); bat->start(); w->start();
   Serial.printf("R tread-control-esp32 %s\n", VERSION);
 }
 

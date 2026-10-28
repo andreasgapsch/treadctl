@@ -349,6 +349,7 @@ public class CoreSzenarien {
             s.run(2.2);
             t("Steigung auf Grenze 10 % begrenzt", Math.abs(s.c.tIncl - 10) < 0.05, "Steigung " + s.c.tIncl);
             t("Zustand meldet steuernde App", new JSONObject(s.c.stateJson(false)).optString("app").equals("Kinomap"), "");
+            t("Start aus der App bei laufendem Band: nur bestätigt, keine Wirkung", s.c.appCmd(FtmsData.OP_START, Double.NaN, "Kinomap") == FtmsData.RES_OK && "LAEUFT".equals(s.c.st), s.c.st);
             s.cmd("{\"c\":\"incline\",\"v\":2}"); s.run(2.2);
             t("Nach Handeingabe hat die Konsole 30 s Vorrang", s.c.appCmd(FtmsData.OP_INCL, 6, "Kinomap") == FtmsData.RES_NOT_PERMITTED && Math.abs(s.c.tIncl - 2) < 0.05, "Steigung " + s.c.tIncl);
             s.c.manualAt = Core.clock() - 31000;
@@ -374,6 +375,12 @@ public class CoreSzenarien {
             byte[] r = FtmsData.rsc(10, 1.234);
             t("Laufsensor: 711/256 m/s, Schrittfrequenz 159, Distanz 12340 dm, Laufen", (r[1] & 0xff | (r[2] & 0xff) << 8) == 711 && (r[3] & 0xff) == 159 && (r[4] & 0xff | (r[5] & 0xff) << 8) == 12340 && (r[0] & 4) != 0, "");
             t("Feature mit Steuerung: Tempo- und Steigungssoll", FtmsData.feature(true)[4] == 3 && FtmsData.feature(false)[4] == 0, "");
+            FtmsData.Cp sim = FtmsData.parse(new byte[] { 0x11, 0, 0, 0x2c, 0x01, 0x28, 0x33 }), simKurz = FtmsData.parse(new byte[] { 0x11, 0, 0 });
+            t("Steuerpunkt 0x11 (Zwift-Simulation): Steigung 3.00 %, zu kurz ungültig", Math.abs(sim.v - 3.0) < 1e-9 && simKurz.bad, sim.v + "");
+            double w1 = FtmsData.wahooGrade(new byte[] { 0x11, (byte) 0xF4, 0x01 }), w2 = FtmsData.wahooGrade(new byte[] { 0x11, (byte) 0x0C, (byte) 0xFE }),
+                w3 = FtmsData.wahooGrade(new byte[] { 0x46, (byte) 0xFF, (byte) 0xFF }), w4 = FtmsData.wahooGrade(new byte[] { 0x12, 0, 0 });
+            t("Wahoo-Steigung: 0x11 5.00 % und -5.00 %, 0x46 Höchstwert 100 %, andere Befehle keine Steigung", Math.abs(w1 - 5) < 1e-9 && Math.abs(w2 + 5) < 1e-9 && Math.abs(w3 - 100) < 1e-6 && Double.isNaN(w4), w1 + " " + w2 + " " + w3);
+            t("Laufsensor auf dem Schuh (0x01)", FtmsData.rscLocation()[0] == 1, "");
         }
         System.out.println();
         System.out.println("Ergebnis: " + ok + " bestanden, " + fail + " fehlgeschlagen");

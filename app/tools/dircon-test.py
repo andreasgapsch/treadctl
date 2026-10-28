@@ -38,7 +38,8 @@ notes = []
 
 m, q, code, body = req(1)
 svcs = [uuid.UUID(bytes=body[i:i + 16]) for i in range(0, len(body), 16)]
-t('Dienste: FTMS und Laufsensor', code == 0 and q == seq and svcs == [u16(0x1826), u16(0x1814)], ', '.join(str(x)[4:8] for x in svcs))
+WAHOO = uuid.UUID('a026ee0e-0a7d-4ab3-97fa-f1500f9feb8b'); WAHOO_W = uuid.UUID('a026e03e-0a7d-4ab3-97fa-f1500f9feb8b')
+t('Dienste: FTMS, Laufsensor und Wahoo Run', code == 0 and q == seq and svcs == [u16(0x1826), u16(0x1814), WAHOO], ', '.join(str(x)[:8] for x in svcs))
 m, q, code, body = req(2, u16(0x1826).bytes)
 ch = {uuid.UUID(bytes=body[16 + i:32 + i]): body[32 + i] for i in range(0, len(body) - 16, 17)}
 t('FTMS-Merkmale mit Eigenschaften', code == 0 and ch.get(u16(0x2ACD)) == 4 and ch.get(u16(0x2AD9)) == 10 and ch.get(u16(0x2ACC)) == 1, ', '.join('%s:%d' % (str(k)[4:8], v) for k, v in ch.items()))
@@ -47,6 +48,13 @@ mn, mx, st = struct.unpack('<HHH', body[16:22]) if len(body) >= 22 else (0, 0, 0
 t('Tempobereich lesen', code == 0 and mn == 80 and mx >= 800 and st == 10, '%.1f bis %.1f km/h' % (mn / 100, mx / 100))
 m, q, code, body = req(2, u16(0x1234).bytes)
 t('Unbekannter Dienst -> Code 3', code == 3, str(code))
+m, q, code, body = req(2, WAHOO.bytes)
+wch = {uuid.UUID(bytes=body[16 + i:32 + i]): body[32 + i] for i in range(0, len(body) - 16, 17)}
+t('Wahoo-Merkmale E03E (schreiben, melden) und E03D', code == 0 and wch.get(WAHOO_W) == 6 and len(wch) == 2, str(len(wch)))
+# Steigung 0 % schreiben: ohne erlaubte Steuerung wirkt nichts, die Antwort FE 11 02 kommt trotzdem (wie NordicFTMS)
+req(5, WAHOO_W.bytes + b'\x01')
+m, q, code, body = req(4, WAHOO_W.bytes + b'\x11\x00\x00')
+t('Wahoo-Steigung schreiben wird angenommen', code == 0, str(code))
 m, q, code, body = req(5, u16(0x2ACD).bytes + b'\x01')
 t('Laufdaten abonnieren', code == 0 and uuid.UUID(bytes=body[:16]) == u16(0x2ACD), str(code))
 s.settimeout(3)
