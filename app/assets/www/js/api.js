@@ -25,6 +25,7 @@
     state: function (hist) {
       var ctl = window.AbortController ? new AbortController() : null;
       var tk = api.token(), hd = tk ? { 'X-Token': tk } : {};   // mit Token zaehlt die Abfrage als Lebenszeichen fuer den Watchdog
+      if (TX.viewName) hd['X-View'] = TX.viewName;   // aktuelle Ansicht: auf der Startseite startet die gruene Taste einen Schnellstart
       return withTimeout(fetch('/api/state' + (hist ? '?hist=1' : ''), { cache: 'no-store', headers: hd, signal: ctl ? ctl.signal : undefined })
         .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }), 2500, ctl);
     },

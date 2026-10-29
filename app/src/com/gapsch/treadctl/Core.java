@@ -731,6 +731,9 @@ public class Core implements Runnable {
     void endHold() { if (holdLeft > 0) { holdLeft = 0; holdTarget = -1; note = ""; } }
 
     // ---------------- Geraetetasten ----------------
+    /** Ansicht der eigenen Oberflaeche (bei jeder Abfrage gemeldet) und ob ihre Startseite gerade vorne ist. */
+    volatile String uiView = ""; volatile long uiViewAt = 0;
+    boolean homeShown() { return "home".equals(uiView) && clock() - uiViewAt < 5000 && "com.gapsch.treadctl".equals(topPkg); }
     /** Taste oder Drehregler der Konsole (aus KeyReader). STOP wirkt immer und sofort. */
     void hwKey(int code) {
         if (code == KeyReader.K_STOP) { armAt = 0; hwStartAt = 0; stopNow("taste"); log("taste stop", speed); return; }   // erst STOP, dann Logbuch
@@ -742,6 +745,10 @@ public class Core implements Runnable {
                     if (hwStartAt > 0) return;
                     if (pulled != 0 || safe != 1 || photoLock()) { log("taste start ignoriert (Schlüssel/Sperre)", 0); return; }
                     if (BEREIT.equals(st) || PAUSE.equals(st)) {
+                        if (BEREIT.equals(st) && homeShown()) {   // Startseite vorne: Schnellstart, nie ein zuvor geladenes Training
+                            prog = null; progType = null; segs = null; rp = null; tSpeed = HOLD_SPEED; tIncl = 0f;
+                            log("taste schnellstart", 0);
+                        }
                         hwResume = PAUSE.equals(st); armAt = clock(); hwStartAt = armAt + 3000;
                         note = "Band läuft in 3 s an · STOP bricht ab"; log("taste start", 0);
                     }

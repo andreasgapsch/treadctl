@@ -17,7 +17,7 @@ import org.json.JSONObject;
 public class Conn implements Runnable {
     final TreadDaemon d;
     final Socket s;
-    String method = "", path = "/", query = "", host = "", token = "", origin = "", from = "ui", ifNone = "";
+    String method = "", path = "/", query = "", host = "", token = "", origin = "", from = "ui", ifNone = "", view = "";
     int clen = 0;
     String cache = "no-store";
 
@@ -43,6 +43,7 @@ public class Conn implements Runnable {
                 else if (k.equals("origin")) origin = v;
                 else if (k.equals("x-from")) from = v;
                 else if (k.equals("if-none-match")) ifNone = v;
+                else if (k.equals("x-view")) view = v;
                 else if (k.equals("content-length")) try { clen = Integer.parseInt(v); } catch (Exception e) {}
             }
             if (!host.equals("127.0.0.1:" + TreadDaemon.PORT) && !host.equals("localhost:" + TreadDaemon.PORT)) {
@@ -60,6 +61,7 @@ public class Conn implements Runnable {
     void api(InputStream in) throws Exception {
         Core c = d.core;
         if (path.equals("/api/state") && method.equals("GET")) {
+            if (Token.check(token) && view.matches("[a-z]{1,16}")) { c.uiView = view; c.uiViewAt = Core.clock(); }   // Ansicht der eigenen Oberflaeche
             if (Token.check(token)) c.lastLease = Core.clock();   // Lebenszeichen nur von der eigenen Oberflaeche bzw. Pille (Token), nicht von fremden Apps
             // Haengt die Hauptschleife, nicht auf den Lock warten (der Thread waere sonst blockiert): sofort melden
             if (Core.clock() - c.lastTickAt > 2000) { json(503, Core.err("Steuerkern reagiert nicht")); return; }

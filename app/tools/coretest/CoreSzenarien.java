@@ -379,6 +379,17 @@ public class CoreSzenarien {
             CoreSzenarien q = new CoreSzenarien(); q.run(0.4); q.c.topPkg = "com.kinomap.training";
             t("Ohne erlaubte App-Steuerung kein Start", q.c.appCmd(FtmsData.OP_START, Double.NaN, "App") == FtmsData.RES_NOT_PERMITTED && q.c.hwStartAt == 0, "");
         }
+        { // 35 Gruene Taste auf der Startseite: Schnellstart mit 1 km/h, nie ein zuvor geladenes Training; anderswo das geladene
+            CoreSzenarien s = new CoreSzenarien(); s.run(0.4);
+            String pl = "{\"c\":\"program\",\"p\":{\"type\":\"interval\",\"name\":\"Test\",\"segs\":[{\"d\":300,\"s\":9,\"i\":2}]}}";
+            s.cmd(pl); s.c.topPkg = "com.gapsch.treadctl"; s.c.uiView = "home"; s.c.uiViewAt = Core.clock();
+            s.c.hwKey(KeyReader.K_GO); s.run(4);
+            t("Startseite: grüne Taste startet freies Laufen mit 1 km/h", "LAEUFT".equals(s.c.st) && s.c.prog == null && Math.abs(s.c.tSpeed - 1f) < 0.05f && s.c.tIncl == 0f, s.c.st + " " + s.c.tSpeed + " prog " + s.c.prog);
+            s.c.hwKey(KeyReader.K_STOP); s.run(15); s.cmd("{\"c\":\"end\"}"); s.run(1);
+            s.cmd(pl); s.c.uiView = "interval"; s.c.uiViewAt = Core.clock(); s.c.hwKey(KeyReader.K_GO); s.run(4);
+            t("Andere Ansicht: grüne Taste startet das geladene Programm", "LAEUFT".equals(s.c.st) && s.c.prog != null, s.c.st + " prog " + (s.c.prog != null));
+            s.c.hwKey(KeyReader.K_STOP); s.run(15);
+        }
         { // 34 Befunde aus dem Review: Schluessel im Countdown, NaN, App-STOP im Countdown der Pille, Fehler raeumt auf, Lease
             CoreSzenarien s = new CoreSzenarien(); s.run(0.4); s.c.appCtl = true; s.c.topPkg = "com.kinomap.training"; s.c.appStartRejAt = 0;
             s.c.appCmd(FtmsData.OP_START, Double.NaN, "App"); boolean cd = s.c.hwStartAt > 0;

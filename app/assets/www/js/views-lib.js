@@ -440,17 +440,12 @@
     var hs = null, pollT = 0, busy = '', alive = true, fs = null, fanT = 0;
     root.innerHTML = TX.headHtml('Apps') + '<main class="body"><h1 class="sr">Geräte</h1>' +
       '<section class="card devc" aria-label="Pulsmesser"><div class="dh"><span class="dico" style="background:rgba(255,77,94,.15);color:var(--hr)">' + I('heart', 1) + '</span><div><h2>Pulsmesser</h2><div class="mut">Bluetooth, direkt mit der Konsole</div></div></div>' +
-      '<div class="hrbox" data-k="hrbox"></div><div class="dact" data-k="dact"></div><div class="flist2" data-k="found"></div>' +
-      '<div class="guide"><div class="gi"><b>Garmin HRM 600</b><span>Gurt an den Elektroden anfeuchten und anlegen, dann «Suchen».</span></div>' +
-      '<div class="gi"><b>Garmin Forerunner 970</b><span>Auf der Uhr «Herzfrequenz übertragen» bzw. «HF senden» einschalten, dann «Suchen». Im Training sendet die Uhr ebenfalls.</span></div></div></section>' +
+      '<div class="hrbox" data-k="hrbox"></div><div class="dact" data-k="dact"></div><div class="flist2" data-k="found"></div></section>' +
       // Ventilator CYCPLUS F1: Status, Suchen/Trennen, Stufenwahl AUTO | AUS | 25 | 50 | 75 | 100
       '<section class="card devc" aria-label="Ventilator"><div class="dh"><span class="dico" style="background:rgba(46,127,168,.2);color:#5bb4dc">' + I('fan') + '</span><div><h2>Ventilator</h2><div class="mut">CYCPLUS F1 über Bluetooth</div></div></div>' +
-      '<div class="hrbox" data-k="fanbox"></div><div class="dact" data-k="fanact"></div><div data-k="fanlv"></div>' +
-      '<div class="guide"><div class="gi"><b>Nur eine Verbindung</b><span>Hersteller-App dabei schliessen, der Ventilator nimmt nur eine Verbindung an.</span></div></div></section>' +
+      '<div class="hrbox" data-k="fanbox"></div><div class="dact" data-k="fanact"></div><div data-k="fanlv"></div></section>' +
       '<section class="card devc" aria-label="Lautsprecher und Kopfhörer"><div class="dh"><span class="dico" style="background:rgba(61,139,255,.15);color:var(--spd)">' + I('sound') + '</span><div><h2>Lautsprecher und Kopfhörer</h2><div class="mut">Ton über Bluetooth</div></div></div>' +
-      '<div class="audl" data-k="aud"></div><button class="btn go devbt" data-v="bt">' + I('sound') + ' Bluetooth-Lautsprecher koppeln</button>' +
-      '<div class="guide"><div class="gi"><b>So geht es</b><span>Öffnet die Bluetooth-Einstellungen der Konsole. Lautsprecher oder Kopfhörer in den Kopplungsmodus bringen und in der Liste wählen. Der Ton läuft danach automatisch darüber.</span></div>' +
-      '<div class="gi"><b>Sonos</b><span>Nur Modelle mit Bluetooth (Roam, Move, Era 100/300, Ace): Bluetooth-Taste am Lautsprecher lange drücken, dann in der Liste wählen.</span></div></div></section></main>';
+      '<div class="audl" data-k="aud"></div><button class="btn go devbt" data-v="bt">' + I('sound') + ' Bluetooth-Lautsprecher koppeln</button></section></main>';
     function render() {
       var h = hs || { state: 'aus', found: [] }, con = h.state === 'verbunden', st = HRST[h.state] || h.state || '', box = $('[data-k="hrbox"]', root);
       var bh = h.bt === false ? '<div class="hrst off">Bluetooth ist aus oder nicht verfügbar</div>' :

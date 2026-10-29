@@ -18,7 +18,7 @@
     if (name === 'plans' && p[1] === 'edit') { name = 'edit'; prm = p.slice(2); }
     if (!TX.views[name]) name = 'home';
     if (cur && cur.destroy) cur.destroy();
-    cur = null; curName = name; app.innerHTML = '';
+    cur = null; curName = name; TX.viewName = name; app.innerHTML = '';
     var v = TX.views[name](prm, r.q);
     cur = v; v.born = Date.now(); TX.pageAt = v.born;
     app.appendChild(v.el); TX.fixGap(v.el);
@@ -533,8 +533,12 @@
   /* ---------- Zustand verteilen ---------- */
   var OFF = { ok: false, st: 'OFF', err: '', speed: 0, incline: 0, tSpeed: 0, tIncl: 0, hr: 0, hrOk: false, pulled: -1, safe: 0, elapsed: 0, dist: 0, kcal: 0, elev: 0, src: '', prog: null };
   TX.OFF = OFF;
+  var lastSt0 = '';
   api.on(function (st) {
     trackPause(st);
+    // Start auf der Startseite (gruene Taste: Schnellstart): gleich in die Laufansicht
+    if (st && lastSt0 === 'BEREIT' && st.st === 'LAEUFT' && curName === 'home') TX.go(TX.trainHash(st));
+    if (st) lastSt0 = st.st;
     if (cur) cur.update(st || OFF);
     if (cdl && cdWhat !== 'hw' && !cdOk(st)) cdStop();
     hwCountdown(st);

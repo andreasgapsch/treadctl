@@ -1451,11 +1451,11 @@ if (!ONLY.length) {
     const ok = /ohne Pulsmesser nicht auswertbar/.test(a.why) && !a.bt && /^--/.test(a.big) && q === '142 bpm als HFmax?' && hf1 === hf0 && hf2 === 142;
     return { ok, d: `ohne Puls «${a.why}», Knopf ${a.bt}, Wert «${a.big}»; 142: Rückfrage «${q}», Abbrechen ${hf0} → ${hf1}, Übernehmen → ${hf2}` };
   });
-  await flow('Ventilator auf der Geräteseite: Karte mit Name und Status, AUTO | AUS | 25 | 50 | 75 | 100 (AUTO blau), Stufe in %, Hinweise; Stufenwahl, Trennen, Suchen; Kopf mit Laufchip passt', async p => {
+  await flow('Ventilator auf der Geräteseite: Karte mit Name und Status, AUTO | AUS | 25 | 50 | 75 | 100 (AUTO blau), Stufe in %, keine Hilfekästen; Stufenwahl, Trennen, Suchen; Kopf mit Laufchip passt', async p => {
     await p.goto(BASE + '?demo=1&szenario=lauf#/geraete'); await p.waitForTimeout(1500);
     const a = await p.evaluate(() => { const c = document.querySelector('section[aria-label="Ventilator"]'), on = c.querySelector('.fanseg .on'), av = document.querySelector('.head .avatar').getBoundingClientRect();
       return { st: c.querySelector('[data-k="fanbox"] .lab').textContent, nm: c.querySelector('[data-k="fanbox"] b').textContent, seg: Array.from(c.querySelectorAll('.fanseg button')).map(b => b.textContent).join('|'),
-        on: on && on.textContent, bg: on && getComputedStyle(on).backgroundColor, lv: c.querySelector('.fanlv b').textContent, note: c.querySelector('.fannote').textContent, hint: c.querySelector('.guide .gi span').textContent,
+        on: on && on.textContent, bg: on && getComputedStyle(on).backgroundColor, lv: c.querySelector('.fanlv b').textContent, note: c.querySelector('.fannote').textContent, hint: document.querySelectorAll('.v-dev .guide').length,
         btn: Array.from(c.querySelectorAll('[data-k="fanact"] button')).map(b => b.textContent.trim()).join(','), avR: av.right, W: innerWidth }; });
     const log = () => p.evaluate(() => JSON.stringify((window.__txFanLog || []).slice(-1)[0]));
     await p.click('[data-fl="75"]'); await p.waitForTimeout(400);
@@ -1471,7 +1471,7 @@ if (!ONLY.length) {
     await p.waitForTimeout(6200);
     const g = await p.evaluate(() => ({ st: document.querySelector('[data-k="fanbox"] .lab').textContent, seg: document.querySelectorAll('.fanseg button').length }));
     const ok = a.st === 'verbunden' && a.nm === 'F1_22D6' && a.seg === 'AUTO|AUS|25|50|75|100' && a.on === 'AUTO' && a.bg === 'rgb(43, 120, 160)' && / %$/.test(a.lv) &&
-      a.note === 'Automatik: aus in Bereit, im Lauf nach Tempo, Steigung und Puls; Handwahl gilt bis Laufende' && a.hint === 'Hersteller-App dabei schliessen, der Ventilator nimmt nur eine Verbindung an.' &&
+      a.note === 'Automatik: aus in Bereit, im Lauf nach Tempo, Steigung und Puls; Handwahl gilt bis Laufende' && a.hint === 0 &&
       a.btn === 'Suchen,Trennen' && a.avR <= a.W && b.l === '{"a":"level","v":75}' && b.on === '75' && b.lv === '75 %' && c.l === '{"a":"off"}' && c.on === 'AUS' && c.lv === '0 %' && d.l === '{"a":"auto"}' && d.on === 'AUTO' &&
       e.l === '{"a":"forget"}' && /Kein Ventilator verbunden/.test(e.box) && e.seg === 0 && f.l === '{"a":"scan"}' && f.btn === 'Suche läuft' && g.st === 'verbunden' && g.seg === 6;
     return { ok, d: `«${a.st}» ${a.nm}, [${a.seg}] aktiv ${a.on} ${a.bg}, ${a.lv}, Knöpfe ${a.btn}, Kopf bis ${Math.round(a.avR)} von ${a.W} px; 75 → ${b.l} ${b.on} ${b.lv}; AUS → ${c.l} ${c.lv}; AUTO → ${d.l}; Trennen → ${e.l} «${e.box.trim()}»; Suchen → ${f.l} «${f.btn}», danach ${g.st}` };
