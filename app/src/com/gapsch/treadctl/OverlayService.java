@@ -166,20 +166,20 @@ public class OverlayService extends Service {
     void buildRoot() {
         root = new SwipeRoot(this); root.setOrientation(LinearLayout.VERTICAL); root.setGravity(Gravity.CENTER_HORIZONTAL);
         noteView = new TextView(this); noteView.setTextColor(WHITE); noteView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
-        noteView.setPadding(dp(16), dp(8), dp(16), dp(8)); noteView.setBackground(round(GLASS, dp(20), LINE)); noteView.setVisibility(View.GONE);
+        noteView.setPadding(dp(16), dp(8), dp(16), dp(8)); noteView.setBackground(round(GLASS, dp(12), LINE)); noteView.setVisibility(View.GONE);
         root.addView(noteView, lpWrap(0, 0, 0, dp(10)));
         above = new FrameLayout(this); above.setVisibility(View.GONE);
         { LinearLayout.LayoutParams ap = lpWrap(0, 0, 0, dp(12)); ap.width = ViewGroup.LayoutParams.MATCH_PARENT; root.addView(above, ap); }
         pill = new LinearLayout(this); pill.setOrientation(LinearLayout.HORIZONTAL); pill.setGravity(Gravity.CENTER_VERTICAL);
         pill.setPadding(dp(8), dp(8), dp(8), dp(8));
-        pill.setBackground(round(GLASS, dp(44), LINE));
+        pill.setBackground(round(GLASS, dp(18), LINE));
         pill.setElevation(0);
         root.addView(pill, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         lp = new WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
             PixelFormat.TRANSLUCENT);
-        lp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL; lp.y = dp(14);
+        lp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL; lp.y = dp(18);
         try { wm.addView(root, lp); } catch (Throwable e) {}
     }
 
@@ -412,9 +412,10 @@ public class OverlayService extends Service {
     void build() {
         statusField = null; weiterBtn = null; pill.removeAllViews(); above.removeAllViews(); above.setVisibility(View.GONE); graphOn = false;
         cTime = cIncl = cSpd = cHr = cDist = cPace = null; firstLab = null; firstIcon = null;
-        pill.setBackground(round(GLASS, dp(44), LINE));
-        pill.setPadding(dp(8), dp(8), dp(8), dp(8)); pill.setElevation(0); pill.setOnClickListener(null); pill.setMinimumWidth(0);   // kein Schatten: kostet bei der grossen Glasflaeche jedes Bild
+        pill.setBackground(round(GLASS, dp(18), LINE));
+        pill.setPadding(dp(8), dp(8), dp(8), dp(8)); pill.setElevation(0); pill.setOnClickListener(null); pill.setMinimumWidth(0); pill.setMinimumHeight(0);   // kein Schatten: kostet bei der grossen Glasflaeche jedes Bild
         pill.setOrientation(LinearLayout.HORIZONTAL); pill.setGravity(Gravity.CENTER_VERTICAL);
+        ViewGroup.LayoutParams plp = pill.getLayoutParams(); if (plp != null && (plp.width != ViewGroup.LayoutParams.WRAP_CONTENT || plp.height != ViewGroup.LayoutParams.WRAP_CONTENT)) { plp.width = plp.height = ViewGroup.LayoutParams.WRAP_CONTENT; pill.setLayoutParams(plp); }
         pill.setOnLongClickListener(null);
         switch (mode) {
             case "exp": {
@@ -440,7 +441,7 @@ public class OverlayService extends Service {
                 break; }
             case "dock": {
                 // Laufapps: kleine Leiste unten mit Menue (zu Tread Control) und Musik (Player darueber), halb durchsichtig
-                pill.setBackground(round(0x99181A21, dp(36), 0x26FFFFFF)); pill.setPadding(dp(8), dp(8), dp(8), dp(8));
+                pill.setBackground(round(0x99181A21, dp(18), 0x26FFFFFF)); pill.setPadding(dp(8), dp(8), dp(8), dp(8));
                 add(pb("menu", WHITE, new Runnable() { public void run() { closeAbove(); dockOpen = false; openUi(home()); } }), 0);
                 final View[] mb = new View[1];
                 mb[0] = pb("music", WHITE, new Runnable() { public void run() { togglePlayer(mb[0]); } });
@@ -459,7 +460,7 @@ public class OverlayService extends Service {
                 // Griff unten in der Mitte (wie in allen Apps gleich): hochwischen oder antippen zeigt die Pille
                 pill.setPadding(dp(22), dp(8), dp(22), dp(10)); pill.setElevation(0); pill.setOrientation(LinearLayout.VERTICAL);
                 pill.setGravity(Gravity.CENTER_HORIZONTAL);
-                View bar = new View(this); bar.setBackground(round(0xB3FFFFFF, dp(3), 0));
+                View bar = new View(this); bar.setBackground(round(0xB3FFFFFF, dp(4), 0));
                 pill.addView(bar, new LinearLayout.LayoutParams(dp(56), dp(5)));
                 TextView t = new TextView(this); miniLabel = t; t.setTextColor(0xFFCFD2DC); t.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13); t.setTypeface(Typeface.DEFAULT_BOLD);
                 t.setLetterSpacing(0.06f);
@@ -483,7 +484,7 @@ public class OverlayService extends Service {
                 final View w = bigBtn("WEITER", "play", GO, 0xFF03210F, null);
                 w.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { if (Core.clock() - modeAt < 1000) return; touch(); countdown((LinearLayout) w, "resume"); } });
                 ((LinearLayout) w).setMinimumWidth(dp(252));
-                weiterBtn = w; weiterSub = new TextView(this); weiterSub.setTextColor(0xFF03210F); weiterSub.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12); weiterSub.setVisibility(View.GONE);
+                weiterBtn = w; weiterSub = new TextView(this); weiterSub.setTextColor(0xFF03210F); weiterSub.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13); weiterSub.setVisibility(View.GONE);
                 { // Symbol und Text in einer Zeile, der Hinweis darunter
                     LinearLayout wl = (LinearLayout) w, top1 = new LinearLayout(this); top1.setGravity(Gravity.CENTER);
                     while (wl.getChildCount() > 0) { View c0 = wl.getChildAt(0); ViewGroup.LayoutParams l0 = c0.getLayoutParams(); wl.removeViewAt(0); top1.addView(c0, l0); }
@@ -508,33 +509,26 @@ public class OverlayService extends Service {
                     ui.postDelayed(new Runnable() { public void run() { v.setAlpha(a0); } }, 1000); }
                 break; }
             case "key": {
-                pill.setBackground(round(0xFF3C080E, dp(44), 0xFFFF4D5E)); pill.setPadding(dp(28), dp(16), dp(28), dp(16)); pill.setMinimumWidth(dp(900));
-                Icon k = new Icon(this, "key", HR); pill.addView(k, sq(30, 0));
-                pill.addView(textBlock("Sicherheitsschlüssel gezogen", "Band steht. Schlüssel einstecken, dann erscheint hier START.", 0xFFE9C9CC), lpWrap(dp(14), 0, 0, 0));
+                safetyCard("key", HR, "Sicherheitsschlüssel gezogen", "Band steht. Schlüssel einstecken, dann erscheint START.", null);
                 break; }
             case "err": {
-                pill.setBackground(round(0xFF3C080E, dp(44), 0xFFFF4D5E)); pill.setPadding(dp(22), dp(10), dp(10), dp(10)); pill.setMinimumWidth(dp(900));
                 String e = s == null ? "Fehler" : s.optString("err", "Fehler");
-                Icon k = new Icon(this, e.contains("Schlüssel") ? "key" : "warn", HR); pill.addView(k, sq(28, 0));
-                e = "FEHLER · " + e;
+                String ic = e.contains("Schlüssel") ? "key" : "warn";
+                e = "Störung: " + e;
                 boolean canAck = s != null && s.optDouble("speed") < 0.3 && s.optInt("pulled") == 0;
-                LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f); tl.setMargins(dp(14), 0, dp(14), 0);
                 // gleiche Reihenfolge und Texte wie TX.errHint in der Weboberflaeche
                 String hint = s == null ? "" : s.optDouble("speed") > 0.3 ? "STOP gesendet, Band läuft aus." : s.optInt("pulled") == 1 ? "Zuerst Schlüssel einstecken." : s.optInt("pulled") == -1 ? "Verbindung zum Band unsicher. Bei Bedarf STOP." : "Band steht. Nach Prüfung quittieren.";
-                pill.addView(textBlock(e, hint, 0xFFE9C9CC), tl);
                 // Band laeuft noch oder Zustand unbekannt: STOP bleibt bedienbar statt eines gesperrten Quittierens
                 boolean moving = s != null && (s.optDouble("speed") > 0.3 || s.optInt("pulled") == -1);
-                if (moving) { add(stopBtn(), 0); break; }
+                if (moving) { safetyCard(ic, HR, e, hint, stopBtn()); break; }
                 View q = bigBtn("QUITTIEREN", "check", 0xFF252937, WHITE, new Runnable() { public void run() { cmd("ack"); } });
                 q.setAlpha(0.35f); final boolean ok2 = canAck; final View qf = q;
                 ui.postDelayed(new Runnable() { public void run() { if (ok2) qf.setAlpha(1f); } }, 1500);
                 if (!canAck) q.setEnabled(false);
-                add(q, 0);
+                safetyCard(ic, HR, e, hint, q);
                 break; }
             default: { // Dienst nicht erreichbar: STOP geht direkt auf den Herstellerbus
-                pill.setBackground(round(0xFF3C080E, dp(44), 0xCCFF4D5E)); pill.setPadding(dp(22), dp(10), dp(10), dp(10));
-                pill.addView(textBlock("Steuerdienst nicht erreichbar", "Wird neu gestartet. STOP wirkt trotzdem.", 0xFFE9C9CC), lpWrap(0, 0, dp(14), 0));
-                add(stopBtn(), 0);
+                safetyCard("warn", INC, "Steuerdienst nicht erreichbar", "Wird neu gestartet. STOP wirkt trotzdem.", stopBtn());
             }
         }
     }
@@ -559,13 +553,13 @@ public class OverlayService extends Service {
         root.addView(pill, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
     }
 
-    /** Abstand zum unteren Rand: Griff knapp, Pille 14 dp; ueber der Hersteller-App 30 dp, damit deren Knopf «Verwalten» nicht ueber STOP hervorschaut. */
+    /** Abstand zum unteren Rand: Griff 8 dp, Pille 18 dp wie der Seitenrand der Oberflaeche; ueber der Hersteller-App 30 dp, damit deren Knopf «Verwalten» nicht ueber STOP hervorschaut. */
     int baseY() {
         String tp = s == null ? "" : s.optString("top", "");
         // Apps mit Leiste am unteren Rand (YouTube, YouTube Music): Pille darueber, sonst deckt sie deren Reiter zu; im Vollbild unten
         int nav = appFullscreen ? 0 : dp(AppHygiene.bottomBarDp(tp));
-        if ("mini".equals(mode)) return dp(6) + nav;
-        return (tp.startsWith("com.jht") ? dp(30) : dp(14)) + nav;
+        if ("mini".equals(mode)) return dp(8) + nav;
+        return (tp.startsWith("com.jht") ? dp(30) : dp(18)) + nav;
     }
     /** Ziel von Menue und Zurueck: im Lauf und in der Pause das laufende Training, sonst die Startseite. */
     String home() { String t = st(); return "LAEUFT".equals(t) || "PAUSE".equals(t) || "FEHLER".equals(t) ? "/training" : "/"; }
@@ -573,7 +567,8 @@ public class OverlayService extends Service {
     void place() {
         try {
             boolean mini = "mini".equals(mode), ghost = "ghost".equals(mode);
-            int g = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, y = ghost ? 0 : baseY(), x = 0;
+            boolean mid = safetyMode(mode);   // Sicherheitsmeldungen mittig, knapp unter der Bildmitte wie in der Oberflaeche
+            int g = mid ? Gravity.CENTER : Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL, y = ghost ? 0 : mid ? dp(12) : baseY(), x = 0;
             if (lp.gravity != g || lp.y != y || lp.x != x) { lp.gravity = g; lp.x = x; lp.y = y; wm.updateViewLayout(root, lp); }
             root.setAlpha(mini ? 0.92f : 1f);
             orderChildren();
@@ -642,8 +637,8 @@ public class OverlayService extends Service {
             setTxt(gPace, sp > 1 ? mmss((int) Math.round(3600 / sp)) : "--:--");
             setTxt(gDist, String.format(Locale.US, "%.2f", s.optDouble("dist")));
             int h = s.optInt("hr"), hf = s.optInt("hfmax", 184);
-            double p = hf > 0 ? h / (double) hf : 0;
-            setTxt(gZone, h > 0 ? "Z" + (p < .6 ? 1 : p < .7 ? 2 : p < .8 ? 3 : p < .9 ? 4 : 5) : "--");
+            int zn = s.has("zone") ? s.optInt("zone") : Core.zoneOf(h, hf);   // eine Formel: der Dienst liefert die Zone
+            setTxt(gZone, zn > 0 ? "Z" + zn : zn < 0 ? "RUHE" : "--");
             setTxt(gKcal, String.valueOf(s.optInt("kcal")));
         }
         if (fanLab != null) { JSONObject f = s.optJSONObject("fan"); boolean con = f != null && f.optBoolean("c", true);
@@ -669,9 +664,9 @@ public class OverlayService extends Service {
             int L = box.length();
                         sp.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), 0, L + 2 + l1.length(), 0);
             sp.setSpan(new android.text.style.RelativeSizeSpan(0.8f), L + 3 + l1.length(), sp.length(), 0);
-            noteView.setText(sp); noteView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 24); noteView.setGravity(Gravity.CENTER);
+            noteView.setText(sp); noteView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 26); noteView.setGravity(Gravity.CENTER);
             noteView.setPadding(dp(28), dp(10), dp(28), dp(10)); noteView.setMinWidth(0);
-            noteView.setBackground(round(WARN, dp(20), 0)); noteView.setTextColor(0xFF2A1000);
+            noteView.setBackground(round(WARN, dp(12), 0)); noteView.setTextColor(0xFF2A1000);
             noteView.setVisibility(View.VISIBLE); bannerOn = true;
             if (left <= 3 && left != lastBeep) { lastBeep = left; beep(); }
             return;
@@ -689,11 +684,11 @@ public class OverlayService extends Service {
                 int L = box.length();
                                 sp.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), 0, L + 2 + l1.length(), 0);
                 sp.setSpan(new android.text.style.RelativeSizeSpan(0.8f), L + 3 + l1.length(), sp.length(), 0);
-                noteView.setText(sp); noteView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 24); noteView.setGravity(Gravity.CENTER);
+                noteView.setText(sp); noteView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 26); noteView.setGravity(Gravity.CENTER);
                 noteView.setPadding(dp(28), dp(10), dp(28), dp(10)); noteView.setMinWidth(0);
                 if (left <= 3) noteView.animate().scaleX(1.03f).scaleY(1.03f).setDuration(150).withEndAction(new Runnable() { public void run() { noteView.animate().scaleX(1f).scaleY(1f).setDuration(150).start(); } }).start();
                 boolean upw = ns > cur + 0.05;
-                noteView.setBackground(round(upw ? WARN : SPD, dp(20), 0));
+                noteView.setBackground(round(upw ? WARN : SPD, dp(12), 0));
                 noteView.setTextColor(upw ? 0xFF2A1000 : 0xFFFFFFFF);
                 noteView.setVisibility(View.VISIBLE); bannerOn = true;
                 if (left <= 3 && left != lastBeep) { lastBeep = left;
@@ -719,15 +714,15 @@ public class OverlayService extends Service {
                 int L = box.length();
                                 sp.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), 0, L + 2 + l1.length(), 0);
                 sp.setSpan(new android.text.style.RelativeSizeSpan(0.8f), L + 3 + l1.length(), sp.length(), 0);
-                noteView.setText(sp); noteView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 24); noteView.setGravity(Gravity.CENTER);
+                noteView.setText(sp); noteView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 26); noteView.setGravity(Gravity.CENTER);
                 noteView.setPadding(dp(28), dp(10), dp(28), dp(10)); noteView.setMinWidth(0);
-                noteView.setBackground(round(finish ? GO : upw ? WARN : SPD, dp(20), 0));
+                noteView.setBackground(round(finish ? GO : upw ? WARN : SPD, dp(12), 0));
                 noteView.setTextColor(upw || finish ? 0xFF2A1000 : 0xFFFFFFFF);
                 noteView.setVisibility(View.VISIBLE); bannerOn = true;
                 if (left <= 3 && left != lastBeep) { lastBeep = left; beep(); }
             }
         }
-        if (!show && bannerOn) { bannerOn = false; lastBeep = -1; noteView.setVisibility(View.GONE); noteView.setBackground(round(GLASS, dp(20), LINE)); noteView.setTextColor(WHITE);
+        if (!show && bannerOn) { bannerOn = false; lastBeep = -1; noteView.setVisibility(View.GONE); noteView.setBackground(round(GLASS, dp(12), LINE)); noteView.setTextColor(WHITE);
             noteView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15); noteView.setMinWidth(0); noteView.setPadding(dp(16), dp(8), dp(16), dp(8)); }
     }
 
@@ -772,7 +767,7 @@ public class OverlayService extends Service {
     TextView[] tapCell(String icon, int iconCol, String label, int labCol, final String what) {
         TextView[] t = cell(icon, iconCol, label, labCol);
         View v = (View) t[0].getTag();
-        v.setBackground(round(0x0DFFFFFF, dp(30), LINE)); v.setPadding(dp(14), dp(4), dp(18), dp(4));
+        v.setBackground(round(0x0DFFFFFF, dp(14), LINE)); v.setPadding(dp(14), dp(4), dp(18), dp(4));
         v.setOnClickListener(new View.OnClickListener() { public void onClick(View x) { touch(); togglePop(what); } });
         return t;
     }
@@ -780,7 +775,7 @@ public class OverlayService extends Service {
     /** Einstellfeld: - Wert +. Tippen auf den Wert oeffnet die Schnellwahl. */
     TextView[] adj(String label, int col, final String what) {
         LinearLayout a = new LinearLayout(this); a.setOrientation(LinearLayout.HORIZONTAL); a.setGravity(Gravity.CENTER_VERTICAL);
-        a.setBackground(round(0x0DFFFFFF, dp(36), LINE)); a.setPadding(dp(4), dp(4), dp(4), dp(4));
+        a.setBackground(round(0x0DFFFFFF, dp(18), LINE)); a.setPadding(dp(4), dp(4), dp(4), dp(4));
         a.addView(roundBtn("minus", col, what, -0.5f), sq(60, 0));
         LinearLayout c = new LinearLayout(this); c.setOrientation(LinearLayout.VERTICAL); c.setGravity(Gravity.CENTER);
         TextView lab = label(label, col); lab.setGravity(Gravity.CENTER); c.addView(lab);
@@ -797,7 +792,7 @@ public class OverlayService extends Service {
 
     /** Runder +/- Knopf mit Wiederholung bei langem Druck (nach 500 ms alle 250 ms). */
     View roundBtn(String icon, int col, final String what, final float d) {
-        final FrameLayout b = new FrameLayout(this); b.setBackground(round(CHIP, dp(30), 0));
+        final FrameLayout b = new FrameLayout(this); b.setBackground(round(CHIP, dp(12), 0));
         Icon ic = new Icon(this, icon, col); b.addView(ic, new FrameLayout.LayoutParams(dp(26), dp(26), Gravity.CENTER));
         final Runnable rep = new Runnable() { public void run() { step(what, d); ui.postDelayed(this, 250); } };
         b.setOnTouchListener(new View.OnTouchListener() { public boolean onTouch(View v, MotionEvent e) {
@@ -809,10 +804,10 @@ public class OverlayService extends Service {
     }
 
     View stopBtn() {
-        LinearLayout b = new LinearLayout(this); b.setGravity(Gravity.CENTER); b.setBackground(round(HR, dp(32), 0));
+        LinearLayout b = new LinearLayout(this); b.setGravity(Gravity.CENTER); b.setBackground(round(HR, dp(18), 0));
         Icon ic = new Icon(this, "stop", 0xFF2B0509); b.addView(ic, sq(24, 0));
         TextView t = new TextView(this); t.setText("STOP"); t.setTextColor(0xFF2B0509); t.setTypeface(Typeface.DEFAULT_BOLD);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 21); t.setLetterSpacing(.08f); b.addView(t, lpWrap(dp(8), 0, 0, 0));
+        t.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20); t.setLetterSpacing(.08f); b.addView(t, lpWrap(dp(8), 0, 0, 0));
         b.setMinimumWidth(dp(200)); b.setMinimumHeight(dp(76));
         b.setOnTouchListener(new View.OnTouchListener() { public boolean onTouch(View v, MotionEvent e) {
             if (e.getActionMasked() == MotionEvent.ACTION_DOWN) { press(v, true); touch(); doStop(); }
@@ -823,10 +818,10 @@ public class OverlayService extends Service {
 
     View bigBtn(String txt, String icon, int bg, int fg, final Runnable r) {
         // Sperre gilt fuer alle grossen Knoepfe: 1 s nach jedem Moduswechsel
-        LinearLayout b = new LinearLayout(this); b.setGravity(Gravity.CENTER); b.setBackground(round(bg, dp(32), bg == 0xFF252937 ? LINE : 0));
+        LinearLayout b = new LinearLayout(this); b.setGravity(Gravity.CENTER); b.setBackground(round(bg, dp(18), bg == 0xFF252937 ? LINE : 0));
         Icon ic = new Icon(this, icon, fg); b.addView(ic, sq(24, 0));
         TextView t = new TextView(this); t.setText(txt); t.setTextColor(fg); t.setTypeface(Typeface.DEFAULT_BOLD);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18); t.setLetterSpacing(.06f); b.addView(t, lpWrap(dp(8), 0, 0, 0));
+        t.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 17); t.setLetterSpacing(.06f); b.addView(t, lpWrap(dp(8), 0, 0, 0));
         b.setMinimumWidth(dp(176)); b.setMinimumHeight(dp(64)); b.setPadding(dp(16), 0, dp(16), 0);
         // Sperre nach Moduswechsel: ein zweiter Tipp auf STOP darf nie WEITER oder START ausloesen
         if (r != null) b.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { if (Core.clock() - modeAt < ("err".equals(mode) ? 1500 : 1000)) return; touch(); r.run(); } });
@@ -835,7 +830,7 @@ public class OverlayService extends Service {
     }
 
     View pb(String icon, int col, final Runnable r) {
-        FrameLayout b = new FrameLayout(this); b.setBackground(round(CHIP, dp(30), LINE));
+        FrameLayout b = new FrameLayout(this); b.setBackground(round(CHIP, dp(12), LINE));
         Icon ic = new Icon(this, icon, col); b.addView(ic, new FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER));
         b.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { touch(); r.run(); } });
         pressable(b);
@@ -845,27 +840,45 @@ public class OverlayService extends Service {
     }
 
     View expBtn() {
-        FrameLayout b = new FrameLayout(this); b.setBackground(round(0x14FFFFFF, dp(28), 0));
+        FrameLayout b = new FrameLayout(this); b.setBackground(round(0x14FFFFFF, dp(12), 0));
         ((GradientDrawable) b.getBackground()).setStroke(dp(2), 0x99FFFFFF);
         Icon ic = new Icon(this, "up", WHITE); b.addView(ic, new FrameLayout.LayoutParams(dp(24), dp(24), Gravity.CENTER));
         b.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { expand(); } });
         return b;
     }
 
+    /** Sicherheitsmeldung wie in der Oberflaeche: quadratisch (360 dp) in der Bildmitte, Symbol, Titel, Hinweis, Knopf unten. */
+    void safetyCard(String icon, int col, String title, String hint, View btn) {
+        boolean warn = col == INC;
+        pill.setBackground(round(warn ? 0xFF3A2A05 : 0xFF5C0D16, dp(24), col));
+        pill.setOrientation(LinearLayout.VERTICAL); pill.setGravity(btn == null ? Gravity.CENTER : Gravity.CENTER_HORIZONTAL);
+        pill.setPadding(dp(24), dp(32), dp(24), dp(24));
+        // fest 360 x 360: ein Platzhalter mit Gewicht wuerde in einem Fenster mit WRAP_CONTENT sonst die ganze Hoehe fuellen
+        ViewGroup.LayoutParams pl = pill.getLayoutParams(); if (pl != null) { pl.width = dp(360); pl.height = dp(360); pill.setLayoutParams(pl); }
+        pill.addView(new Icon(this, icon, col), new LinearLayout.LayoutParams(dp(40), dp(40)));
+        TextView t1 = new TextView(this); t1.setText(title); t1.setTextColor(WHITE); t1.setTypeface(Typeface.DEFAULT_BOLD); t1.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 22);
+        t1.setGravity(Gravity.CENTER); t1.setMaxWidth(dp(312)); t1.setMaxLines(3); t1.setEllipsize(android.text.TextUtils.TruncateAt.END); pill.addView(t1, lpWrap(0, dp(16), 0, 0));
+        TextView t2 = new TextView(this); t2.setText(hint); t2.setTextColor(0xFFE6E7EE); t2.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
+        t2.setGravity(Gravity.CENTER); t2.setMaxWidth(dp(312)); t2.setMaxLines(3); t2.setEllipsize(android.text.TextUtils.TruncateAt.END); pill.addView(t2, lpWrap(0, dp(8), 0, 0));
+        if (btn != null) pill.addView(new View(this), new LinearLayout.LayoutParams(1, 0, 1f));
+        if (btn != null) { int bh = btn.getMinimumHeight() >= dp(76) ? dp(76) : dp(56); btn.setMinimumHeight(bh); btn.setMinimumWidth(0); LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(dp(312), bh); bl.topMargin = dp(16); pill.addView(btn, bl); }   // STOP bleibt 76 hoch
+    }
+    static boolean safetyMode(String m) { return "err".equals(m) || "key".equals(m) || "nodaemon".equals(m); }
+
     LinearLayout textBlock(String a, String b, int bc) {
         LinearLayout l = new LinearLayout(this); l.setOrientation(LinearLayout.VERTICAL);
         TextView t1 = new TextView(this); t1.setText(a); t1.setTextColor(WHITE); t1.setTypeface(Typeface.DEFAULT_BOLD); t1.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
-        TextView t2 = new TextView(this); t2.setText(b); t2.setTextColor(bc); t2.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+        TextView t2 = new TextView(this); t2.setText(b); t2.setTextColor(bc); t2.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
         l.addView(t1); l.addView(t2); return l;
     }
 
     /** Lange Etiketten (z. B. «BELASTUNG 2/5») enger setzen statt abschneiden. */
-    void fitLab(TextView t) { int n = t.getText().length(); t.setLetterSpacing(n > 10 ? .02f : .1f); t.setTextSize(TypedValue.COMPLEX_UNIT_DIP, n > 12 ? 11 : 12); }
+    void fitLab(TextView t) { int n = t.getText().length(); t.setLetterSpacing(n > 10 ? .02f : .1f); t.setTextSize(TypedValue.COMPLEX_UNIT_DIP, n > 12 ? 12 : 13); }
     /** Text nur setzen, wenn er sich aendert: setText loest sonst bei jedem Abruf ein neues Layout des ganzen Pillenfensters aus. */
     static void setTxt(TextView t, CharSequence v) { if (t != null && !android.text.TextUtils.equals(t.getText(), v)) t.setText(v); }
     TextView label(String s, int col) {
         TextView t = new TextView(this); t.setText(s); t.setTextColor(col); t.setTypeface(Typeface.DEFAULT_BOLD);
-        t.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 12); t.setLetterSpacing(.1f); t.setSingleLine(true); return t;
+        t.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13); t.setLetterSpacing(.09f); t.setSingleLine(true); return t;
     }
     TextView num(int size) {
         TextView t = new TextView(this); t.setTextColor(WHITE); t.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
@@ -922,10 +935,10 @@ public class OverlayService extends Service {
         final TextView t = (TextView) b.getChildAt(1); cdBtn = b; cdLabel = t.getText().toString(); cdBg = b.getBackground();
         cmd("arm");
         final LinearLayout abort = "start".equals(what) ? b : statusField;
-        if ("start".equals(what)) { b.setBackground(round(HR, dp(32), 0)); t.setTextColor(0xFF2B0509); }
+        if ("start".equals(what)) { b.setBackground(round(HR, dp(18), 0)); t.setTextColor(0xFF2B0509); }
         else { b.setEnabled(false); b.setAlpha(0.6f); }
         if (abort != null) { abort.setClickable(true); abort.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { cancelCountdown(); } });
-            if (abort != b) { abort.setBackground(round(HR, dp(32), 0)); ((TextView) abort.getChildAt(0)).setText("ABBRECHEN"); ((TextView) abort.getChildAt(0)).setTextColor(0xFF2B0509); ((TextView) abort.getChildAt(1)).setText("Band bleibt stehen"); ((TextView) abort.getChildAt(1)).setTextColor(0xFF2B0509); } }
+            if (abort != b) { abort.setBackground(round(HR, dp(18), 0)); ((TextView) abort.getChildAt(0)).setText("ABBRECHEN"); ((TextView) abort.getChildAt(0)).setTextColor(0xFF2B0509); ((TextView) abort.getChildAt(1)).setText("Band bleibt stehen"); ((TextView) abort.getChildAt(1)).setTextColor(0xFF2B0509); } }
         cd = 3;
         cdTask = new Runnable() { public void run() {
             if (cd == 0) { cdTask = null; restoreCd(); cmd(what); return; }
@@ -953,9 +966,20 @@ public class OverlayService extends Service {
         if (simActive) return;   // Simulation: nie den echten Lauf beenden
         // in Apps mit eigener Anzeige in der App bleiben; die Zusammenfassung steht danach im Verlauf
         final boolean stay = ownDisplay();
-        new Thread(new Runnable() { public void run() { Api.cmd(OverlayService.this, "end"); ui.post(new Runnable() { public void run() {
-            if (stay) { try { android.widget.Toast.makeText(OverlayService.this, "Lauf gespeichert, Zusammenfassung im Verlauf", android.widget.Toast.LENGTH_LONG).show(); } catch (Throwable e) {} }
+        new Thread(new Runnable() { public void run() { final JSONObject r = Api.cmdResult(OverlayService.this, "end"); ui.post(new Runnable() { public void run() {
+            if (stay) { try { android.widget.Toast.makeText(OverlayService.this, endText(r), android.widget.Toast.LENGTH_LONG).show(); } catch (Throwable e) {} }
             else openUi("/summary/last"); } }); } }).start();
+    }
+    /** Meldung nach BEENDEN in einer App. Gespeichert wird in der Oberflaeche mit derselben Regel wie dort (app.js finishRun):
+     *  unter 10 s nie, unter 2 min oder 0.2 km erst nach Rueckfrage, sonst sofort. */
+    static String endText(JSONObject r) {
+        JSONObject s = r == null ? null : r.optJSONObject("summary");
+        if (r == null || !r.optBoolean("ok")) return "Beenden nicht bestätigt, bitte Zustand prüfen";
+        if (s == null) return "Lauf beendet";
+        double el = s.optDouble("elapsed", 0), d = s.optDouble("dist", 0);
+        if (el < 10 && d < 0.01) return "Lauf beendet, unter 10 s: nicht gespeichert";
+        if (el < 120 || d < 0.2) return "Lauf beendet. Kurzer Lauf: beim Öffnen von Tread Control speichern oder verwerfen";
+        return "Lauf beendet, er erscheint im Verlauf";
     }
 
     void step(final String what, final float d) {
@@ -992,9 +1016,9 @@ public class OverlayService extends Service {
     /** Ventilator-Knopf: Symbol und Stufe (A = Automatik); Tipp oeffnet die Auswahl. */
     View fanBtn() {
         LinearLayout b = new LinearLayout(this); b.setOrientation(LinearLayout.VERTICAL); b.setGravity(Gravity.CENTER);
-        b.setBackground(round(CHIP, dp(30), LINE));
+        b.setBackground(round(CHIP, dp(12), LINE));
         b.addView(new Icon(this, "fan", 0xFF7FD8FF), new LinearLayout.LayoutParams(dp(22), dp(22)));
-        fanLab = new TextView(this); fanLab.setTextColor(WHITE); fanLab.setTypeface(Typeface.DEFAULT_BOLD); fanLab.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11); fanLab.setText("--");
+        fanLab = new TextView(this); fanLab.setTextColor(WHITE); fanLab.setTypeface(Typeface.DEFAULT_BOLD); fanLab.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13); fanLab.setText("--");
         b.addView(fanLab, lpWrap(0, dp(1), 0, 0));
         b.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { touch(); toggleFan(v); } });
         pressable(b);
@@ -1010,7 +1034,7 @@ public class OverlayService extends Service {
         final String[] lab = { "AUTO", "AUS", "25", "50", "75", "100" };
         for (final String k : lab) {
             TextView t = new TextView(this); t.setText(k); t.setGravity(Gravity.CENTER);
-            t.setTextColor(WHITE); t.setTypeface(Typeface.DEFAULT_BOLD); t.setTextSize(TypedValue.COMPLEX_UNIT_DIP, k.length() > 3 ? 16 : 19);
+            t.setTextColor(WHITE); t.setTypeface(Typeface.DEFAULT_BOLD); t.setTextSize(TypedValue.COMPLEX_UNIT_DIP, k.length() > 3 ? 15 : 20);
             boolean on = "AUTO".equals(k) ? au : !au && ("AUS".equals(k) ? lv <= 0 : String.valueOf(lv).equals(k));
             t.setBackground(round(on ? 0xFF2E7FA8 : CHIP, dp(12), 0));
             t.setOnClickListener(new View.OnClickListener() { public void onClick(View x) { touch(); fan(k); closeAbove(); } });
@@ -1043,7 +1067,7 @@ public class OverlayService extends Service {
         float cur = s == null ? -1 : (float) s.optDouble("speed".equals(what) ? "tSpeed" : "tIncl");
         for (final float v : vals) {
             TextView t = new TextView(this); t.setText(f1(v)); t.setGravity(Gravity.CENTER);
-            t.setTextColor(WHITE); t.setTypeface(Typeface.DEFAULT_BOLD); t.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 19);
+            t.setTextColor(WHITE); t.setTypeface(Typeface.DEFAULT_BOLD); t.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
             boolean on = Math.abs(cur - v) < 0.05f;
             t.setBackground(round(on ? ("speed".equals(what) ? SPD : INC) : CHIP, dp(12), 0));
             if (on && !"speed".equals(what)) t.setTextColor(0xFF1F1600);
@@ -1127,7 +1151,7 @@ public class OverlayService extends Service {
         if (graphOn) { closeAbove(); return; }
         pop = null; above.removeAllViews();
         LinearLayout strip = new LinearLayout(this); strip.setOrientation(LinearLayout.HORIZONTAL);
-        strip.setBackground(round(0xFF15171C, dp(22), LINE)); strip.setPadding(dp(16), dp(12), dp(16), dp(12));
+        strip.setBackground(round(0xFF15171C, dp(18), LINE)); strip.setPadding(dp(16), dp(12), dp(16), dp(12));
         graph = new Graph(this);
         int w = Math.max(dp(700), pill.getWidth() - pill.getPaddingLeft() - pill.getPaddingRight() + dp(16));
         strip.addView(graph, new LinearLayout.LayoutParams(w - dp(32) - dp(260), dp(116)));
@@ -1185,7 +1209,7 @@ public class OverlayService extends Service {
         saverClock = new TextView(this); saverClock.setTextColor(0xFF6E7385); saverClock.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 110);
         saverClock.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL)); saverClock.setFontFeatureSettings("tnum");
         saverDate = new TextView(this); saverDate.setTextColor(0xFF4E5262); saverDate.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 24);
-        TextView hint = new TextView(this); hint.setText("Berühren zum Fortfahren"); hint.setTextColor(0xFF3A3D49); hint.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16);
+        TextView hint = new TextView(this); hint.setText("Berühren zum Fortfahren"); hint.setTextColor(0xFF3A3D49); hint.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 15);
         saverClock.setSingleLine(true); saverDate.setSingleLine(true);
         Date d0 = new Date();
         saverClock.setText(new SimpleDateFormat("HH:mm", Locale.GERMAN).format(d0));

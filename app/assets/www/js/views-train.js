@@ -73,7 +73,7 @@
       '<div class="legend"><span><i style="background:var(--spd)"></i>Tempo</span><span><i style="background:var(--hr)"></i>Puls</span><span><i style="background:var(--inc)"></i>Steigung</span></div>' +
       '<div class="seg" role="group" aria-label="Zeitraum"><button data-v="r5">5 min</button><button data-v="r20">20 min</button><button data-v="r0">Alles</button></div></div>' +
       '<div class="chart" data-k="ch" style="flex:1;min-height:0"></div><div class="xaxis" data-k="xa" style="padding-right:' + GUT + 'px"></div></section>' +
-      '<section class="card zcard" aria-label="Herzfrequenz"><h2 class="lab" style="color:var(--hr);font-size:14px">' + I('heart', 1) + ' Herzfrequenz</h2>' +
+      '<section class="card zcard" aria-label="Herzfrequenz"><h2 class="lab" style="color:var(--hr);font-size:13px">' + I('heart', 1) + ' Herzfrequenz</h2>' +
       '<div class="zn" data-k="zn">RUHE</div><div class="big num" data-k="hr">--</div><div class="mut" style="font-size:15px;margin-top:4px" data-k="hrs"></div>' +
       '<div class="zbar" data-k="zb"><i style="background:var(--z1)">1</i><i style="background:var(--z2)">2</i><i style="background:var(--z3)">3</i><i style="background:var(--z4)">4</i><i style="background:var(--z5)">5</i></div>' +
       '<div class="mut" style="font-size:15px;margin-top:16px" data-k="zt"></div></section></div>';
@@ -313,7 +313,7 @@
           setT(root, 'hfm', hfMax ? String(Math.round(hfMax)) : TX.NA);
           setT(root, 'hfn', hn0 ? String(hn0) : TX.NA);
           setT(root, 'hfq', 'im Profil ' + TX.profile().hf);
-          setT(root, 'hfp', !hn0 && !hfMax ? 'Kein Pulssignal: ohne Pulsmesser nicht auswertbar' : s === 'BEREIT' ? 'Der höchste Wert steht nach dem Lauf zur Übernahme bereit.' : '');
+          setT(root, 'hfp', !hn0 && !hfMax ? 'Kein Pulssignal: ohne Pulsmesser nicht auswertbar' : '');
         }
         // Puls im Abschnitt (mit Live-Punkten ab der ersten Sekunde)
         var hk = TX.api.histVer + '|' + TX.api.liveVer + '|' + s + '|' + i0;
@@ -375,10 +375,10 @@
     function fmtCfg(k) { return k === 'dur' ? String(Math.round(cfg.dur / 60)) : TX.f1(cfg[k]); }
     function renderSetup() {
       var zs = TX.zones();
-      main.innerHTML = '<section class="card zsetup" aria-label="Zielzone"><h2 class="lab" style="color:var(--hr);font-size:14px">' + I('heart', 1) + ' Zielzone wählen</h2>' +
+      main.innerHTML = '<section class="card zsetup" aria-label="Zielzone"><h2 class="lab" style="color:var(--hr);font-size:13px">' + I('heart', 1) + ' Zielzone wählen</h2>' +
         '<div class="zsel" style="flex-direction:column;flex:1">' + zs.map(function (x) {
           return '<button data-z="' + x.z + '" style="flex-direction:row;justify-content:flex-start;padding:0 18px;gap:16px;height:auto;flex:1" aria-pressed="false"><b style="color:' + TX.ZT[x.z] + ';width:44px">Z' + x.z + '</b>' +
-            '<span style="font-size:16px;color:var(--text);font-weight:700;width:120px">' + ZN[x.z] + '</span><span style="font-size:15px">' + x.txt + ' bpm</span></button>';
+            '<span style="font-size:17px;color:var(--text);font-weight:700;width:120px">' + ZN[x.z] + '</span><span style="font-size:15px">' + x.txt + ' bpm</span></button>';
         }).join('') + '</div></section>' +
         '<section class="card zsetup" aria-label="Einstellungen"><h2 class="lab">Einstellungen</h2>' +
         '<div class="srow">' + stepper('dur', 'Dauer', fmtCfg('dur'), 'min') + stepper('sMin', 'Tempo min', fmtCfg('sMin'), 'km/h') + stepper('sMax', 'Tempo max', fmtCfg('sMax'), 'km/h') + '</div>' +
@@ -387,7 +387,7 @@
         '<div class="mut" data-k="pnote"></div></div><span class="bars4 big" data-k="pbars"></span><div class="pval"><div class="num"><span data-k="pv">' + TX.NA + '</span><small>bpm</small></div><div class="pst" data-k="pst"></div></div></div>' +
         '<div class="limits" style="margin-top:auto"><span class="chip">Automatik: langsamer sofort, schneller nur bei stabilem Signal</span><span class="chip">Erste 5 min: nicht schneller</span>' +
         '<span class="chip" style="color:#ff9a52">' + I('shield') + ' Ohne Pulssignal: Tempo halten, nach 20 s schrittweise aufs Mindesttempo</span></div>' +
-        '<div class="mut" style="font-size:14px;margin-top:12px" data-k="lst">Zone antippen lädt das Programm. Das Band startet erst mit START.</div></section>';
+        '<div class="mut" style="font-size:15px;margin-top:12px" data-k="lst">Zone antippen lädt das Programm. Das Band startet erst mit START.</div></section>';
       TX.$$('[data-st]', main).forEach(function (b) {
         TX.holdRepeat(b, function (n) {
           var k = b.getAttribute('data-st'), d = +b.getAttribute('data-d');
@@ -438,7 +438,7 @@
       }).then(function () { TX.api.poke(); });
     }
     function renderRun() {
-      main.innerHTML = '<section class="card gauge" aria-label="Puls"><h2 class="lab" style="color:var(--hr);font-size:14px">' + I('heart', 1) + ' Puls · <span data-k="zz">Zielzone</span></h2>' +
+      main.innerHTML = '<section class="card gauge" aria-label="Puls"><h2 class="lab" style="color:var(--hr);font-size:13px">' + I('heart', 1) + ' Puls · <span data-k="zz">Zielzone</span></h2>' +
         '<div class="gw"><svg data-k="g" width="340" height="180" aria-hidden="true"></svg><div class="c"><div class="num" data-k="ghr">--</div><div class="st2" data-k="gst"></div></div></div>' +
         '<div class="zl" data-k="zl"></div><div class="sig" data-k="sig"></div>' +
         '<div class="autob"><span style="font-size:22px;display:flex" data-k="aic"></span><div><div style="font-weight:800;font-size:15px" data-k="at"></div><div class="mut" style="font-size:13px" data-k="as"></div></div>' +
@@ -473,7 +473,7 @@
           mode = want; lastHv = '';
           if (want === 'setup') renderSetup(); else if (want === 'run') renderRun();
           else main.innerHTML = '<section class="card" style="grid-column:1 / span 2;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px">' +
-            '<div class="mut" style="font-size:18px">Es läuft gerade kein Zonentraining.</div><a class="btn ghost" href="#/training">Zum laufenden Training</a></section>';
+            '<div class="mut" style="font-size:17px">Es läuft gerade kein Zonentraining.</div><a class="btn ghost" href="#/training">Zum laufenden Training</a></section>';
         }
         setT(root, 'title', pr ? TX.nm(pr.name) : 'Zonentraining');
         setT(root, 'sub', pr ? 'Ziel ' + pr.lo + ' bis ' + pr.hi + ' bpm' : 'Zielzone wählen, dann START');

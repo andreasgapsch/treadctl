@@ -226,12 +226,12 @@
   // Kurzer Lauf: unter 2 min oder unter 0.2 km wird nachgefragt, Vorgabe Verwerfen
   TX.SHORT = { sec: 120, km: 0.2 };
   TX.isShort = function (rec) { return rec.elapsed < TX.SHORT.sec || rec.dist < TX.SHORT.km; };
-  function finishRun(rec, nav) {
+  function finishRun(rec, nav, msg) {
     // diese Zusammenfassung ist erledigt (gespeichert oder bewusst verworfen): beim naechsten Start nicht nachtragen
     if (/^s\d+$/.test(rec.id)) try { localStorage.setItem('tx.sumSeen', String(rec.ts)); } catch (e) {}
     if (rec.elapsed < 10 && rec.dist < 0.01) { TX.toast('Lauf kürzer als 10 s, nicht gespeichert'); if (nav) TX.go('#/'); return; }
     if (TX.run(rec.id)) { if (nav) TX.go('#/summary/' + encodeURIComponent(rec.id)); return; }
-    var keep = function () { TX.saveRun(rec); if (nav) TX.go('#/summary/' + encodeURIComponent(rec.id)); else TX.toast('Lauf gespeichert'); };
+    var keep = function () { TX.saveRun(rec); if (nav) TX.go('#/summary/' + encodeURIComponent(rec.id)); else TX.toast(msg || 'Lauf gespeichert'); };
     if (!TX.isShort(rec)) { keep(); return; }
     shortDlg(rec, function (k, nv) { nav = nav || nv; if (k) keep(); else { TX.toast('Kurzer Lauf verworfen'); if (nav) TX.go('#/'); } }, nav);
   }
@@ -602,12 +602,13 @@
   // Lauf, den der Dienst ohne Oberflaeche beendet hat (Pausenzeit, Pille ueber anderer App, Neustart): beim Start nachtragen
   if (!api.demo) setTimeout(function () {
     api.summary().then(function (sum) {
-      if (!sum || !sum.ts || !(sum.elapsed >= 60) || Date.now() - sum.ts > 7 * 864e5) return;   // bis 7 Tage alt (z. B. ueber Nacht beendet)
+      if (!sum || !sum.ts || !(sum.elapsed >= 10 || sum.dist >= 0.01) || Date.now() - sum.ts > 7 * 864e5) return;   // bis 7 Tage alt (z. B. ueber Nacht beendet)
       var seen = 0; try { seen = +localStorage.getItem('tx.sumSeen') || 0; } catch (e) {}
       if (sum.ts <= seen) return;
       try { localStorage.setItem('tx.sumSeen', String(sum.ts)); } catch (e) {}
       var rec = TX.makeRun(null, null, sum);
-      if (!TX.run(rec.id)) { TX.saveRun(rec); TX.toast('Letzter Lauf nachgetragen: ' + rec.name); }
+      // dieselbe Speicherregel wie sonst: kurze Laeufe erst nach Rueckfrage (die Pille kuendigt das an)
+      if (!TX.run(rec.id)) finishRun(rec, false, 'Letzter Lauf nachgetragen: ' + rec.name);
     });
   }, 2500);
   // Gewicht und HFmax einmal beim Laden an den Dienst

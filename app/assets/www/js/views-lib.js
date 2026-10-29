@@ -205,7 +205,7 @@
       det.innerHTML = '<div style="display:flex;gap:8px;align-items:center"><span class="chip" style="' + tc + '">' + TX.TYPES[p.type].toUpperCase() + '</span>' +
         (days.length ? '<span class="chip">Im Wochenplan: ' + days.join(', ') + '</span>' : '') +
         '<button class="favb' + (p.fav ? ' on' : '') + '" data-v="fav" aria-pressed="' + p.fav + '" aria-label="Favorit">' + I('star', p.fav) + '</button></div>' +
-        '<h2>' + esc(TX.nm(p.name)) + '</h2><div class="mut" style="font-size:14px">' + esc(p.desc || '') + '</div>' +
+        '<h2>' + esc(TX.nm(p.name)) + '</h2><div class="mut" style="font-size:15px">' + esc(p.desc || '') + '</div>' +
         '<div class="kp"><div><div class="lab">Dauer</div><div class="num">' + TX.time(s.dur) + '</div></div><div><div class="lab">Distanz ca.</div><div class="num">' + TX.km(s.dist) + ' <small>km</small></div></div>' +
         '<div><div class="lab">Max Tempo</div><div class="num">' + TX.f1(s.maxS) + ' <small>km/h</small></div></div><div><div class="lab">Zuletzt</div><div class="num" data-k="dlast">' + lastTxt(p) + '</div></div></div>' +
         '<div class="chart dprof" data-k="prof"></div><div class="segwrap" data-k="sw"><div class="seglist" tabindex="0" aria-label="Abschnitte">' + rows + '</div></div>' + mix +
@@ -290,7 +290,7 @@
           return '<button data-z="' + x.z + '" class="' + (x.z === z.z ? 'on' : '') + '" aria-pressed="' + (x.z === z.z) + '"><b style="color:' + TX.ZT[x.z] + '">Z' + x.z + '</b><span>' + x.txt + ' bpm</span></button>';
         }).join('') + '</div><div class="srow">' + stp('zdur', 'Dauer', Math.round(z.dur / 60), 'min', 'z') + stp('zs0', 'Starttempo', TX.f1(z.s0), 'km/h', 'z') + stp('zsMin', 'Tempo min', TX.f1(z.sMin), 'km/h', 'z') +
           stp('zsMax', 'Tempo max', TX.f1(z.sMax), 'km/h', 'z') + stp('zi', 'Steigung', TX.f1(z.i), '%', 'z') + '</div>' +
-          '<div class="mut" style="font-size:14px">Die Automatik im Dienst hält den Puls im Zielband: langsamer sofort, schneller nur bei stabilem Signal, in den ersten 5 min nie schneller.</div></div>';
+          '<div class="mut" style="font-size:15px">Die Automatik im Dienst hält den Puls im Zielband: langsamer sofort, schneller nur bei stabilem Signal, in den ersten 5 min nie schneller.</div></div>';
       } else {
         var n = w.items.length; seenH = false;
         w.items.forEach(function (it, i) {
@@ -577,7 +577,9 @@
     root.innerHTML = '<main class="body"><section class="card sumh"><div class="ph"></div><div class="shade"></div>' +
       '<div class="lab" style="color:var(--go)">Gespeichert · ' + TX.WD[d.getDay()] + ' ' + TX.dshort(r.ts) + '<span class="demo-tag">DEMO</span></div><h1>' + head + '</h1>' +
       '<div class="mut">' + esc(TX.nm(r.name)) + ' · ' + TX.hm(r.ts) + ' Uhr</div>' +
-      (recs.length ? '<div class="recs">' + recs.map(function (x) { return '<span class="chip rec">' + I('check') + ' Bestzeit ' + esc(x.label) + ' ' + TX.time(x.t) + '</span>'; }).join('') + '</div>' : '') +
+      // neue Bestzeiten in einer Zeile: hoechstens zwei Chips, der Rest als «+n»
+      (recs.length ? '<div class="recs"><span class="rl">' + I('check') + ' Bestzeit</span>' + recs.slice(0, 2).map(function (x) { return '<span class="chip rec">' + esc(x.label === 'Halbmarathon' ? 'HM' : x.label) + ' ' + TX.time(x.t) + '</span>'; }).join('') +
+        (recs.length > 2 ? '<span class="chip rec" title="' + esc(recs.slice(2).map(function (x) { return x.label + ' ' + TX.time(x.t); }).join(', ')) + '">+' + (recs.length - 2) + '</span>' : '') + '</div>' : '') +
       '<div class="bigk"><div><div class="lab">Distanz</div><div class="num">' + TX.f2(r.dist) + '<small>km</small></div></div><div><div class="lab">Zeit</div><div class="num">' + TX.time(r.elapsed) + '</div></div>' +
       '<div><div class="lab">Ø Pace</div><div class="num">' + TX.avgPace(r.dist, r.elapsed) + '<small>/km</small></div>' + (gp ? '<div class="gapp" title="steigungsbereinigt nach Minetti">bereinigt ' + TX.time(gp) + ' /km</div>' : '') + '</div>' +
       (rt && rt.up ? '<div><div class="lab">Höhenmeter Band</div><div class="num">' + r.elev + '<small>von ' + Math.round(rt.up) + ' m</small></div></div>' : '<div><div class="lab">Höhenmeter</div><div class="num">' + r.elev + '<small>m</small></div></div>') +
@@ -586,7 +588,7 @@
         return '<i class="' + (i === wd ? 'today' : '') + '" style="height:' + (km / mx * 100).toFixed(0) + '%"></i>';
       }).join('') + '</div><div class="wlab">' + ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'].map(function (x) { return '<span>' + x + '</span>'; }).join('') + '</div>' +
       '<div class="mut" style="font-size:13px;margin-top:6px">' + TX.weekText(wk) + cmp + '</div></div>' +
-      '<div class="acts"><a class="btn go" href="#/">' + I('check') + ' Fertig</a><button class="btn ghost" data-v="tpl">' + I('plans') + ' Als Vorlage speichern</button></div></section>' +
+      '<div class="acts"><a class="btn go" href="#/">' + I('check') + ' Fertig</a><button class="btn ghost" data-v="tpl">' + I('plans') + ' Als Vorlage</button></div></section>' +
       '<div class="sr2' + (rtCard ? ' wr' : '') + '">' + rtCard +
       '<section class="card gcard"><div style="display:flex;gap:18px;align-items:center"><h2 class="lab">Verlauf</h2><div class="legend"><span><i style="background:var(--spd)"></i>Tempo</span>' +
       '<span><i style="background:var(--inc)"></i>Steigung</span><span><i style="background:var(--hr)"></i>Puls</span></div></div><div class="chart" data-k="ch" style="flex:1;min-height:0;margin-top:8px"></div>' +
@@ -595,7 +597,7 @@
         return '<div class="zrow"><b style="color:' + TX.ZT[z] + '">Z' + z + '</b><div class="bar"><i style="width:' + (zt[z] / zmax * 100).toFixed(0) + '%;background:' + TX.ZC[z] + '"></i></div><span>' + TX.time(zt[z]) + '</span></div>';
       }).join('') + '</section><section class="card splits"><div class="sp h"><span>km</span><span></span><span>PACE</span><span>Ø PULS</span></div><div class="spwrap" data-k="spw"><div class="splist" tabindex="0" aria-label="Kilometer">' +
       (sp.length ? sp.map(function (x) { return '<div class="sp"><b>' + x.km + '</b><i style="width:' + (3600 / x.sec / spMax * 100).toFixed(0) + '%"></i><span>' + TX.time(x.sec) + '</span><span class="mut">' + (x.hr || '--') + '</span></div>'; }).join('')
-        : '<div class="mut" style="font-size:14px;padding:10px 0">Noch kein ganzer Kilometer</div>') + '</div></div></section></div></div></main>';
+        : '<div class="mut" style="font-size:15px;padding:10px 0">Noch kein ganzer Kilometer</div>') + '</div></div></section></div></div></main>';
     function hfSet(v) {
       var pr = TX.profile(); TX.saveProfile({ name: pr.name, hf: v, kg: pr.kg });
       TX.sendProfile().then(function (res) { TX.toast(res && res.ok ? 'HFmax ' + v + ' bpm übernommen' : 'HFmax gespeichert, Dienst nicht erreicht'); });
@@ -604,7 +606,7 @@
     }
     function hfAsk(v) {
       var m = document.createElement('div'); m.className = 'modal blur'; m.setAttribute('role', 'alertdialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-labelledby', 'hfq');
-      m.innerHTML = '<div class="dlg"><div class="ico">' + I('heart') + '</div><h2 id="hfq">' + v + ' bpm als HFmax?</h2><div class="mut" style="margin-top:8px;font-size:16px">Der Wert liegt ' + (v < 150 ? 'unter 150' : 'über 220') +
+      m.innerHTML = '<div class="dlg"><div class="ico">' + I('heart') + '</div><h2 id="hfq">' + v + ' bpm als HFmax?</h2><div class="mut" style="margin-top:8px;font-size:17px">Der Wert liegt ' + (v < 150 ? 'unter 150' : 'über 220') +
         ' bpm. Das spricht oft für einen Messfehler oder einen zu früh beendeten Test. Trotzdem übernehmen?</div>' +
         '<div class="acts"><button class="btn ghost" data-c="no">Abbrechen</button><button class="btn go" data-c="ok">' + I('check') + ' Übernehmen</button></div></div>';
       m.addEventListener('click', function (e) { var b = e.target.closest('[data-c]'); if (!b) return; m.parentNode.removeChild(m); if (b.getAttribute('data-c') === 'ok') hfSet(v); });

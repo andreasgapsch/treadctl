@@ -336,8 +336,7 @@ public class Core implements Runnable {
             }
             if (hr > 0 && hrOk && LAEUFT.equals(st)) {
                 hrSum += hr; hrN++; if (hr > hrMax) hrMax = hr;
-                double p = hr / (double) hfmax; int z = p < .6 ? 0 : p < .7 ? 1 : p < .8 ? 2 : p < .9 ? 3 : 4;
-                zoneSec[z] += dt;
+                zoneSec[Math.max(1, zoneOf(hr, hfmax)) - 1] += dt;
             }
             histAcc += dt;
             if (histAcc >= 2.0 && LAEUFT.equals(st)) {
@@ -748,6 +747,14 @@ public class Core implements Runnable {
     /** Handeingabe beendet das Einlaufen sofort (bewusste Wahl des Laeufers). */
     void endHold() { if (holdLeft > 0) { holdLeft = 0; holdTarget = -1; note = ""; } }
 
+    /** Pulszone wie in der Oberfläche (data.js TX.zones): Grenzen 70, 77, 85, 92 % HFmax. 0 kein Puls, -1 Ruhe (unter 50 %), sonst 1 bis 5. */
+    static int zoneOf(int hr, int hf) {
+        if (hr <= 0 || hf <= 0) return 0;
+        int e1 = (int) Math.floor(hf * 0.70), e2 = (int) Math.round(hf * 0.77), e3 = (int) Math.round(hf * 0.85), e4 = (int) Math.round(hf * 0.92);
+        if (hr < Math.round(hf * 0.5)) return -1;
+        return hr > e4 ? 5 : hr > e3 ? 4 : hr > e2 ? 3 : hr >= e1 ? 2 : 1;
+    }
+
     // ---------------- Sprachansagen ----------------
     /** Ausgabe (Announcer im Dienst; in den Tests null). Stufe: 0 aus, 1 Wechsel und Zustandsaenderungen, 2 zusaetzlich jeder Kilometer. */
     volatile Announcer announcer; volatile int annMode = 2; final java.util.List<String> said = new java.util.ArrayList<String>();
@@ -1029,6 +1036,7 @@ public class Core implements Runnable {
             o.put("hr", hr); o.put("hrOk", hrOk); o.put("pulled", pulled); o.put("safe", safe);
             o.put("elapsed", Math.round(elapsed)); o.put("dist", round2(dist)); o.put("kcal", Math.round(kcal)); o.put("elev", Math.round(elev));
             o.put("src", src); o.put("hfmax", hfmax); o.put("weight", weight); o.put("hrSrc", hrSrc);
+            if (hr > 0) o.put("zone", zoneOf(hr, hfmax));
             if (fanKnown) o.put("fan", new JSONObject().put("l", Math.max(0, fanLevel)).put("a", fanAuto).put("c", fanLevel >= 0));   // Platz in der Pille bleibt, solange ein Ventilator gespeichert ist
             if (holdLeft > 0) { o.put("hold", Math.ceil(holdLeft)); o.put("holdTo", r1((float) holdTarget)); }
             if (appCtl) o.put("appCtl", true);

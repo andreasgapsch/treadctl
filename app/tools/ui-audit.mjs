@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
+import { pruefeCss, pruefePille } from './gestaltung-regeln.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const WWW = path.resolve(HERE, '../assets/www');
@@ -300,7 +301,7 @@ function hfRunHelper() {
     location.hash = '#/summary/' + id;
   };
 }
-const consoleErr = [], dashBad = [];
+const consoleErr = [], dashBad = [], spillBad = [];
 let touchBad = [], touchN = 0, contrastBad = [], contrastN = 0, contrastMin = 99, axeBad = [];
 const shots = {};
 
@@ -343,6 +344,22 @@ async function runView(v, add) {
     return out;
   });
   dash.forEach(x => dashBad.push(`${v.n}: ${x}`));
+  // Regelwerk: kein Inhalt ragt unten oder rechts aus seiner Karte (scrollbare Listen und Kartenkacheln ausgenommen)
+  const spill = await page.evaluate(() => {
+    const out = [], vis = e => { const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 1 && getComputedStyle(e).visibility !== 'hidden'; };
+    for (const c of document.querySelectorAll('.card')) {
+      if (!vis(c) || c.closest('.blur')) continue; const cr = c.getBoundingClientRect();
+      for (const e of c.querySelectorAll('*')) {
+        if (!vis(e) || e.matches('.ph,.shade') || e.closest('.leaflet-container,svg')) continue;
+        let sc = false; for (let a = e.parentElement; a && a !== c; a = a.parentElement) { const ov = getComputedStyle(a).overflowY; if (ov === 'auto' || ov === 'scroll') { sc = true; break; } }
+        if (sc) continue;
+        const r = e.getBoundingClientRect();
+        if (r.bottom > cr.bottom + 1 || r.right > cr.right + 1) { out.push((c.className.split(' ')[1] || 'card') + ' > ' + (e.className && typeof e.className === 'string' ? e.className.split(' ')[0] : e.tagName.toLowerCase()) + ' ' + Math.round(Math.max(r.bottom - cr.bottom, r.right - cr.right)) + ' px'); break; }
+      }
+    }
+    return out;
+  });
+  spill.forEach(x => spillBad.push(`${v.n}: ${x}`));
 
   // Touch-Ziele
   const tt = await page.evaluate(() => {
@@ -424,6 +441,7 @@ add(!consoleErr.length, 'Keine JS-Fehler oder Warnungen in der Konsole', console
 add(!touchBad.length, 'Touch-Ziele >= 48 CSS-px, Steuerleiste >= 60, Statuszeile 40 hoch und >= 48 breit', touchBad.length ? touchBad.slice(0, 12).join('\n      ') : `${touchN} Ziele geprüft`);
 add(!contrastBad.length, 'Textkontrast >= 4.5:1 (Pixelmessung, 5-%-Quantil)', contrastBad.length ? contrastBad.slice(0, 14).join('\n      ') : `${contrastN} Textstellen, Minimum ${contrastMin.toFixed(2)}:1`);
 add(!axeBad.length, 'axe-core WCAG 2.1 A/AA + Best Practice ohne Verstoss', axeBad.length ? axeBad.slice(0, 10).join('\n      ') : 'keine Verstösse');
+add(!spillBad.length, 'Nichts ragt aus seiner Karte (alle Ansichten; scrollbare Listen ausgenommen)', spillBad.length ? spillBad.slice(0, 10).join(', ') : 'alle Ansichten geprüft');
 add(!dashBad.length, 'Einheitlicher Platzhalter «--» (kein einzelnes «-» als Wert)', dashBad.length ? dashBad.slice(0, 8).join(', ') : 'alle Ansichten geprüft');
 
 /* ---------- Ablaeufe ---------- */
@@ -769,7 +787,7 @@ if (!ONLY.length) {
     await p.evaluate(() => { window.TX.sim.s.speed = 12.4; }); await p.waitForTimeout(700);
     const d = await snap();                                                    // wieder innerhalb 0.2: sofort weg
     const ok = a.sv === '12.5' && !a.on && a.lab === 'Ist 12.3' && a.pace === a.want && !b.on && b.lab === 'Ist 12.1' && b.pace === b.want &&
-      c.on && c.si === 'Ist 12.1' && c.fs === '16px' && c.lab === 'Ist 12.1' && c.pace === '4:58' && !d.on && d.lab === 'Ist 12.4';
+      c.on && c.si === 'Ist 12.1' && c.fs === '17px' && c.lab === 'Ist 12.1' && c.pace === '4:58' && !d.on && d.lab === 'Ist 12.4';
     return { ok, d: `0.2: sichtbar ${a.on}; 0.4 nach 0.9 s ${b.on}, nach 2.6 s «${c.si}» ${c.fs}; zurück 0.1: ${d.on}; Etikett ${a.lab} > ${c.lab} > ${d.lab}; Pace ${a.pace}/${c.pace}/${d.pace}` };
   });
   await flow('Pause-Sicherheit: Doppeltipp auf die STOP-Stelle sendet keinen Befehl, dort nur «BAND STEHT», Pausenknöpfe 1 s gesperrt', async p => {
@@ -852,7 +870,7 @@ if (!ONLY.length) {
     await p.evaluate(() => { location.hash = '#/summary/g2'; }); await p.waitForTimeout(800);
     const b = await p.evaluate(() => ({ recs: Array.from(document.querySelectorAll('.sumh .rec')).map(x => x.textContent.trim()), gap: (document.querySelector('.sumh .gapp') || {}).textContent || '' }));
     const ok = /^(Gegner|Bestzeit)$/.test(a.lab) && /^\d+:\d\d$/.test(a.v) && /^(vor|hinter|gleich)$/.test(a.u) &&
-      b.recs.some(x => /Bestzeit 5 km 25:00/.test(x)) && /^bereinigt \d:\d\d \/km$/.test(b.gap);
+      b.recs.some(x => /^5 km 25:00$/.test(x)) && /^bereinigt \d:\d\d \/km$/.test(b.gap);
     return { ok, d: `Kachel «${a.lab}» ${a.v} ${a.u} (${a.cls}); Zusammenfassung [${b.recs}] «${b.gap}»` };
   });
   await flow('Verlauf: einmalige Bereinigung kurzer Alt-Einträge (unter 120 s UND unter 0.2 km), Fassung im Schlüssel tx.history.v1', async p => {
@@ -1069,7 +1087,7 @@ if (!ONLY.length) {
     const off = await bar();
     await p.context().setOffline(false); await p.waitForTimeout(1500);
     const on = await bar();
-    const ok = a.h === 40 && a.top === 0 && a.appTop === 40 && a.bg === 'rgb(0, 0, 0)' && a.fs === '14px' && a.col === 'rgb(164, 169, 187)' && a.dt === a.wantDt && /^(Mo|Di|Mi|Do|Fr|Sa|So) \d\d\.\d\d\.$/.test(a.dt) &&
+    const ok = a.h === 40 && a.top === 0 && a.appTop === 40 && a.bg === 'rgb(0, 0, 0)' && a.fs === '15px' && a.col === 'rgb(164, 169, 187)' && a.dt === a.wantDt && /^(Mo|Di|Mi|Do|Fr|Sa|So) \d\d\.\d\d\.$/.test(a.dt) &&
       a.tm === a.wantTm && /^\d\d:\d\d$/.test(a.tm) && a.right >= 1270 && a.rTop >= 0 && a.rBot <= 40 && a.wifi && a.wl === 'WLAN verbunden' && a.gear && a.gearSvg && !a.brand && c1.join() === 'openSettings' &&
       b.brand && b.dtVis && c2.length === 1 && /nach dem Lauf/.test(toast) && off.wifiOff && off.wl === 'Keine Verbindung' && on.wifi;
     return { ok, d: `${a.h} px, «${a.dt}» «${a.tm}» ${a.fs} ${a.col}, rechts bis ${a.right} px; WLAN ${a.wifi} (offline ${off.wifiOff} «${off.wl}», wieder ${on.wifi}); Zahnrad [${c1}], im Lauf «${toast.trim()}»; Marke Pläne ${a.brand}, Schnellstart ${b.brand}` };
@@ -1935,14 +1953,14 @@ if (!ONLY.length) {
       c.h.startsWith('#/summary/') && c.rt && c.rt.finish && c.rt.t === a.pr.t && c.rt.target === a.pr.target && c.type === 'route' && c.h1 === 'Ziel erreicht!' && /Vorgabe/.test(c.card) && /Zeit bis Ziel/.test(c.card) && /inkl\. Auslaufen/.test(c.card) && /von \d+ m/.test(c.hm) && c.map && c.prof;
     return { ok, d: `«${a.fin}» ${a.ft}, Soll ${a.ts} km/h, Notiz «${a.note}»; nach 10 s ${b.st} «${b.pl}»; Abschluss ${c.h.slice(0, 12)}… «${c.h1}», Strecke Ziel ${c.rt && c.rt.target} s gegen ${c.rt && c.rt.t} s, Karte ${c.map}, Profil ${c.prof}` };
   });
-  await flow('Strecke: Leaflet 1.9.4 lokal, Karte nur Zoom 12 bis 16 mit Ausschnittgrenze, Kacheln nur über /tiles des Dienstes, Luftbild «luft» in der Schweiz, abgedunkelt, Quelle «© swisstopo SWISSIMAGE»', async p => {
+  await flow('Strecke: Leaflet 1.9.4 lokal, Karte Zoom 11 bis 16 mit Ausschnittgrenze, Kacheln nur Stufe 12 bis 16 und nur über /tiles des Dienstes, Luftbild «luft» in der Schweiz, abgedunkelt, Quelle «© swisstopo SWISSIMAGE»', async p => {
     await p.goto(BASE + '?demo=1&frozen=1#/strecke/' + rFirst); await p.waitForTimeout(2500);
     const r = await p.evaluate(() => {
       const m = window.TX.rte._lastMap.map, imgs = Array.from(document.querySelectorAll('.leaflet-tile')).map(i => i.src);
       return { v: window.L && window.L.version, src: Array.from(document.scripts).map(s => s.getAttribute('src')).filter(s => /leaflet/.test(s || '')), css: Array.from(document.querySelectorAll('link[rel=stylesheet]')).map(l => l.getAttribute('href')),
         zmin: m.getMinZoom(), zmax: m.getMaxZoom(), mb: !!m.options.maxBounds, n: imgs.length, ext: imgs.filter(u => !u.startsWith(location.origin + '/tiles/')).length, grau: imgs.filter(u => /\/tiles\/luft\//.test(u)).length, flt: getComputedStyle(document.querySelector('.leaflet-tile')).filter, attr: (document.querySelector('.leaflet-control-attribution') || {}).textContent || '', z: imgs.map(u => +new URL(u).pathname.split('/')[3]) };
     });
-    const ok = r.v === '1.9.4' && r.src.join() === 'lib/leaflet/leaflet.js' && r.css.includes('lib/leaflet/leaflet.css') && r.zmin === 12 && r.zmax === 16 && r.mb && r.n > 0 && r.ext === 0 && r.grau === r.n && r.z.every(z => z >= 12 && z <= 16) && /brightness\(0\.62\) saturate\(0\.85\)/.test(r.flt) && /swisstopo SWISSIMAGE/.test(r.attr);
+    const ok = r.v === '1.9.4' && r.src.join() === 'lib/leaflet/leaflet.js' && r.css.includes('lib/leaflet/leaflet.css') && r.zmin === 11 && r.zmax === 16 && r.mb && r.n > 0 && r.ext === 0 && r.grau === r.n && r.z.every(z => z >= 12 && z <= 16) && /brightness\(0\.62\) saturate\(0\.85\)/.test(r.flt) && /swisstopo SWISSIMAGE/.test(r.attr);
     return { ok, d: `Leaflet ${r.v} aus ${r.src}, Zoom ${r.zmin} bis ${r.zmax}, Grenze ${r.mb}; ${r.n} Kacheln, alle /tiles/luft ${r.grau === r.n}, Filter «${r.flt}», Quelle «${r.attr}», Zoomstufen ${[...new Set(r.z)].join('/')}` };
   });
   await flow('Strecke: Laufansicht bei vollständig gesperrtem Netz (keine Kacheln, kein fremder Host): Linie, Punkt, Profil und Soll-Pace funktionieren', async p => {
@@ -1985,6 +2003,10 @@ for (const [f, s] of text) {
   if (/\u00df/.test(s)) bad.push(f + ': Eszett');
 }
 add(!bad.length, 'Texte ohne Gedankenstriche und ohne Eszett', bad.join(', ') || 'sauber');
+{ // Regelwerk der Gestaltung (notes/gestaltungsregeln.md): Radien, Schrift, Laufweite, Abstaende im Raster, Chip-Hoehen; Pille: Schrift und Radien
+  const g = [...pruefeCss(fs.readFileSync(path.join(WWW, 'css/app.css'), 'utf8')), ...pruefePille(fs.readFileSync(path.join(HERE, '../src/com/gapsch/treadctl/OverlayService.java'), 'utf8'))];
+  add(!g.length, 'Gestaltungsregeln: Radien 4/8/12/14/18/24, Schriftstufen, Laufweite 1.2 px, Abstände im 4-px-Raster, Chips 32 px; Pille gleich', g.slice(0, 12).join(', ') || 'eingehalten');
+}
 // Erlaubt sind nur XML-Namensraeume (keine Anfragen) und der swisstopo-Hoehendienst, den der Import einmal nutzt
 // (Verbesserung, ohne Netz bleiben die GPX-Hoehen); CSS-Kommentare zaehlen nicht.
 const EXT_OK = { 'www.w3.org': 'XML-Namensraum', 'www.topografix.com': 'GPX-Namensraum', 'www.garmin.com': 'TCX-Namensraum', 'api3.geo.admin.ch': 'swisstopo-Höhen beim Import' };

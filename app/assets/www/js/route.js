@@ -493,7 +493,7 @@
   };
 
   /* ---------- Leaflet-Karte ----------
-     el: Container; r: Streckendatei; o: {live (Punkt und Folgen), onFollow(bool)}. Zoom 12 bis 16, Ausschnitt auf die Strecke begrenzt,
+     el: Container; r: Streckendatei; o: {live (Punkt und Folgen), onFollow(bool)}. Zoom 12 bis 16 (11 mit verkleinerten 12er-Kacheln, damit lange Strecken ganz passen), Ausschnitt auf die Strecke begrenzt,
      damit nur Kacheln angefragt werden, die der Dienst haben kann. Rueckgabe: Steuerobjekt. */
   var FLAG = '<svg viewBox="0 0 28 34" width="28" height="34" aria-hidden="true"><path d="M4 2v31" stroke="#fff" stroke-width="3" stroke-linecap="round"/>' +
     '<path d="M5 3h20v14H5z" fill="#fff" stroke="#000" stroke-width="1.5"/><path d="M5 3h5v3.5H5zM15 3h5v3.5h-5zM10 6.5h5V10h-5zM20 6.5h5V10h-5zM5 10h5v3.5H5zM15 10h5v3.5h-5zM10 13.5h5V17h-5zM20 13.5h5V17h-5z" fill="#000"/></svg>';
@@ -502,11 +502,11 @@
     if (!window.L) { el.innerHTML = '<div class="empty">Karte nicht verfügbar</div>'; return null; }
     var Lf = window.L, pts = r.pts, ll = pts.map(function (p) { return [p[0], p[1]]; });
     var bounds = Lf.latLngBounds(ll), pb = bounds.pad(0.25);
-    var map = Lf.map(el, { zoomControl: false, attributionControl: true, keyboard: false, zoomSnap: 0.25, zoomDelta: 0.5, minZoom: R.ZMIN, maxZoom: R.ZMAX, tap: false,
+    var map = Lf.map(el, { zoomControl: false, attributionControl: true, keyboard: false, zoomSnap: 0.25, zoomDelta: 0.5, minZoom: R.ZMIN - 1, maxZoom: R.ZMAX, tap: false,
       bounceAtZoomLimits: false, maxBounds: pb, maxBoundsViscosity: 1.0 });
     map.attributionControl.setPrefix(false);
     var src = R.tileSrc(r);
-    if (src) Lf.tileLayer('/tiles/' + src + '/{z}/{x}/{y}', { minZoom: R.ZMIN, maxZoom: R.ZMAX, bounds: pb, className: 'tl-' + src, keepBuffer: 2,
+    if (src) Lf.tileLayer('/tiles/' + src + '/{z}/{x}/{y}', { minZoom: R.ZMIN - 1, minNativeZoom: R.ZMIN, maxZoom: R.ZMAX, bounds: pb, className: 'tl-' + src, keepBuffer: 2,
       attribution: '© swisstopo SWISSIMAGE' }).addTo(map);
     Lf.polyline(ll, { color: '#000', opacity: 0.55, weight: 11, lineJoin: 'round', interactive: false }).addTo(map);
     var rest = Lf.polyline(ll, { color: o.live ? '#ff4d5e' : '#ffd43b', weight: 6, lineJoin: 'round', interactive: false }).addTo(map);
@@ -553,7 +553,7 @@
           }
         }
       },
-      resize: function () { map.invalidateSize(false); },
+      resize: function (refit) { map.invalidateSize(false); if (refit && !follow) fit(false); },   // nach dem Einhaengen: Groesse stimmt erst jetzt
       destroy: function () { try { map.remove(); } catch (e) { /* egal */ } }
     };
     R._lastMap = ctl;

@@ -90,7 +90,7 @@
   /* ---------- Bestaetigung (Loeschen) ---------- */
   function confirmDlg(title, txt, okTxt, ok) {
     var m = document.createElement('div'); m.className = 'modal blur'; m.setAttribute('role', 'alertdialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-labelledby', 'cfh');
-    m.innerHTML = '<div class="dlg"><div class="ico">' + I('trash') + '</div><h2 id="cfh">' + esc(title) + '</h2><div class="mut" style="margin-top:8px;font-size:16px">' + esc(txt) + '</div>' +
+    m.innerHTML = '<div class="dlg"><div class="ico">' + I('trash') + '</div><h2 id="cfh">' + esc(title) + '</h2><div class="mut" style="margin-top:8px;font-size:17px">' + esc(txt) + '</div>' +
       '<div class="acts"><button class="btn ghost" data-c="no">Abbrechen</button><button class="btn red" data-c="ok">' + I('trash') + ' ' + esc(okTxt) + '</button></div></div>';
     m.addEventListener('click', function (e) { var b = e.target.closest('[data-c]'); if (!b) return; m.parentNode.removeChild(m); if (b.getAttribute('data-c') === 'ok') ok(); });
     document.body.appendChild(m); TX.fixGap(m);
@@ -507,7 +507,7 @@
         if (mode === 'plan') updPlan(st); else if (mode === 'run') updRun(st);
         cb.update(st);
       },
-      mounted: function () { if (map) map.resize(); },
+      mounted: function () { if (map) map.resize(true); },
       destroy: function () { cb.destroy(); clearTimeout(reloadT); if (map) map.destroy(); map = null; }
     };
     root.addEventListener('click', function (e) {

@@ -31,6 +31,11 @@ public class Api {
         try { return s != null && new JSONObject(s).optBoolean("ok"); } catch (Exception e) { return false; }
     }
 
+    /** Befehl senden; liefert die Antwort (null ohne Antwort). */
+    public static JSONObject cmdResult(Context c, String name) {
+        try { String s = http("POST", "/cmd", new JSONObject().put("c", name).toString(), Token.read(c)); return s == null ? null : new JSONObject(s); } catch (Exception e) { return null; }
+    }
+
     public static boolean cmd(Context c, String name) {
         try { return cmd(c, new JSONObject().put("c", name)); } catch (Exception e) { return false; }
     }

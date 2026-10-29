@@ -514,6 +514,12 @@ public class CoreSzenarien {
             t("Laufsensor auf dem Schuh (0x01)", FtmsData.rscLocation()[0] == 1, "");
         }
         System.out.println();
+        { // Pulszone: eine Formel fuer Dienst, Pille und Oberflaeche (70/77/85/92 % HFmax, wie TX.zones)
+            int[] hr = { 91, 92, 127, 128, 142, 143, 156, 157, 169, 170 }, want = { -1, 1, 1, 2, 2, 3, 3, 4, 4, 5 };
+            boolean same = true; StringBuilder got = new StringBuilder();
+            for (int i = 0; i < hr.length; i++) { int z = Core.zoneOf(hr[i], 184); got.append(z).append(' '); if (z != want[i]) same = false; }
+            t("Pulszone wie Oberflaeche (HFmax 184)", same && Core.zoneOf(0, 184) == 0, got.toString().trim());
+        }
         System.out.println("Ergebnis: " + ok + " bestanden, " + fail + " fehlgeschlagen");
         System.exit(fail == 0 ? 0 : 1);
     }
