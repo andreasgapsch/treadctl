@@ -195,6 +195,19 @@ console itself (`lan: false`); `lan: true` opens it to apps in the Wi-Fi (PC, Ap
   point write). If the board stays silent for 6 s, the console resets it via RTS; after two attempts within a minute it falls back to its own Bluetooth. The board decides nothing: commands go through `Core.appCmd`; without a heartbeat for 3 s it answers
   "operation failed" itself and reports "control lost". State in `GET /api/ftms`: `radio` (`konsole` or `esp32`), `espFw`.
 
+## Voice announcements and racing yourself
+
+- Command `announce {mode}` (0 off, 1 changes, 2 changes and every kilometre), `{test: true}` plays a sample, `{say: [clip, ...]}`
+  speaks single clips (names `[a-z0-9]` only); state `ann`. Announced: 10 s before every segment change the phase, speed and (if it
+  changes) incline; on routes shortly before a change incline and speed; 10 s before the run-in ends the target speed; pause,
+  program end, finish, safety key pulled, end of run with distance and time; at level 2 every kilometre with split time, heart rate
+  and the gap to your previous run.
+- The console has no text-to-speech engine. The app plays clips from `app/assets/stimme/` that you generate once with
+  `tools/stimme/erzeugen.py` (Piper with the German voice "Thorsten", dataset CC0; the clips are not part of this repository).
+  Music is ducked, not paused.
+- Racing yourself: the UI compares the current run with the last run of the same template (routes: the best time) and reports the
+  gap every 10 s with `ghost {s}` (negative = ahead) for the kilometre announcement.
+
 ## Media (mini player)
 
 - `GET /api/media` → `{ok, active, pkg, app, playing, title, artist, album, dur, pos, art, canNext, canPrev, vol, volMax, out, outs, sources}`. `art` is a version number that only changes with a new image (0 = none). `outs`: `[{address, name, connected, active, busy}]`, the first entry is the console (`address: ""`). `sources`: YouTube Music and audiobooks with `installed, session, playing, title`.

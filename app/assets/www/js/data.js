@@ -282,6 +282,94 @@
     });
     return best;
   };
+  /* ---------- Gegen sich selbst laufen, Bestzeiten, steigungsbereinigte Pace ---------- */
+  // Weg ueber der Zeit aus dem Verlauf [t s, km/h, %, bpm]; auf die gespeicherte Distanz skaliert (Messraster ausgeglichen)
+  TX.cumDist = function (run) {
+    var h = run && run.hist || [], t = [], d = [], acc = 0;
+    for (var i = 0; i < h.length; i++) {
+      if (i > 0 && h[i][0] > h[i - 1][0]) acc += (h[i][1] + h[i - 1][1]) / 2 * (h[i][0] - h[i - 1][0]) / 3600;
+      t.push(h[i][0]); d.push(acc);
+    }
+    var f = acc > 0 && run.dist > 0 ? run.dist / acc : 1;
+    return { t: t, d: d.map(function (x) { return x * f; }) };
+  };
+  // Zeitpunkt, zu dem der Verlauf die Distanz x (km) erreichte; null, wenn nie
+  TX.timeAtDist = function (c, x) {
+    var d = c.d, n = d.length; if (n < 2 || x > d[n - 1] || x < 0) return null;
+    var lo = 0, hi = n - 1; while (hi - lo > 1) { var m = (lo + hi) >> 1; if (d[m] < x) lo = m; else hi = m; }
+    var dd = d[hi] - d[lo]; return dd > 0 ? c.t[lo] + (x - d[lo]) / dd * (c.t[hi] - c.t[lo]) : c.t[hi];
+  };
+  // Gegner zum laufenden Programm: Strecke: Bestzeit (sonst letzter Lauf), Vorlage oder Wiederholung: letzter Lauf
+  TX.ghost = (function () {
+    var key = '', ref = null, cum = null;
+    function pick(st) {
+      var p = st.prog, runs = TX.runs().filter(function (r) { return r.dist >= 0.2 && r.hist && r.hist.length > 5; });
+      if (p.type === 'route' && p.id) {
+        var same = runs.filter(function (r) { return r.route && r.route.id === p.id; });
+        var fin = same.filter(function (r) { return r.route.finish && r.route.t > 0; }).sort(function (a, b) { return a.route.t - b.route.t; });
+        return fin[0] ? { run: fin[0], label: 'Bestzeit' } : same[0] ? { run: same[0], label: 'Letzter Lauf' } : null;
+      }
+      var nm = TX.nm(p.name || ''), orig = /^Wiederholung: /.test(nm) ? nm.replace(/^Wiederholung: /, '') : '';
+      var act = TX.active(p.name), pl = act && act.planId ? TX.plan(act.planId) : null;
+      var r = orig ? runs.filter(function (x) { return TX.nm(x.name) === orig; })[0] : pl ? TX.lastRunOf(pl, runs) : runs.filter(function (x) { return TX.nm(x.name) === nm; })[0];
+      return r && r.hist && r.hist.length > 5 ? { run: r, label: 'Letzter Lauf' } : null;
+    }
+    return {
+      // {s: Sekunden (negativ = vor dem Gegner), label, run} oder null
+      gap: function (st) {
+        if (!st || !st.prog || !TX.busy(st) || !(st.dist >= 0.1)) return null;
+        var k = st.prog.type + '|' + (st.prog.id || st.prog.name);
+        if (k !== key) { key = k; ref = pick(st); cum = ref ? TX.cumDist(ref.run) : null; }
+        if (!ref || !cum) return null;
+        var tg = TX.timeAtDist(cum, st.dist); if (tg == null) return null;
+        return { s: Math.round(st.elapsed - tg), label: ref.label, run: ref.run };
+      },
+      reset: function () { key = ''; }
+    };
+  })();
+  // Schnellste Zeit ueber feste Distanzen in einem Lauf (km -> s)
+  TX.recSaid = {};
+  TX.BEST_KM = [[1, '1 km'], [5, '5 km'], [10, '10 km'], [21.0975, 'Halbmarathon']];
+  TX.bestEfforts = function (run) {
+    var c = TX.cumDist(run), out = {};
+    TX.BEST_KM.forEach(function (b) {
+      var D = b[0], best = null, j = 0;
+      for (var i = 0; i < c.d.length; i++) {
+        while (j < c.d.length && c.d[j] - c.d[i] < D) j++;
+        if (j >= c.d.length) break;
+        var t = c.t[j] - c.t[i]; if (t > 0 && (best == null || t < best)) best = t;
+      }
+      if (best != null) out[D] = Math.round(best);
+    });
+    return out;
+  };
+  // Neue Bestzeiten eines Laufs gegen alle frueheren: [{label, t}]; Strecke: schnellste Zeit bis Ziel
+  TX.records = function (r) {
+    var prev = TX.runs().filter(function (x) { return x.id !== r.id && x.ts < r.ts; }), out = [], mine = TX.bestEfforts(r);
+    TX.BEST_KM.forEach(function (b) {
+      if (mine[b[0]] == null) return;
+      var old = null; prev.forEach(function (x) { var e = TX.bestEfforts(x)[b[0]]; if (e != null && (old == null || e < old)) old = e; });
+      if (old == null ? b[0] >= 5 : mine[b[0]] < old) out.push({ label: b[1], t: mine[b[0]] });   // erste Messung zaehlt erst ab 5 km
+    });
+    if (r.route && r.route.finish && r.route.t > 0) {
+      var o = prev.filter(function (x) { return x.route && x.route.id === r.route.id && x.route.finish && x.route.t > 0; }).map(function (x) { return x.route.t; });
+      if (o.length && r.route.t < Math.min.apply(null, o)) out.unshift({ label: 'Strecke', t: r.route.t });
+    }
+    return out;
+  };
+  // Steigungsbereinigte Pace (s/km) nach dem Energieaufwand von Minetti et al. 2002 (Laufband, Steigung als Bruch):
+  // C(i) = 155.4 i^5 - 30.4 i^4 - 43.3 i^3 + 46.3 i^2 + 19.5 i + 3.6 J/kg/m; Faktor C(i)/C(0). Null ohne nennenswerte Steigung.
+  TX.minetti = function (pct) { var i = Math.max(0, Math.min(0.45, pct / 100)); return (((((155.4 * i - 30.4) * i - 43.3) * i + 46.3) * i + 19.5) * i + 3.6) / 3.6; };
+  TX.gapPace = function (run) {
+    var h = run && run.hist || [], eq = 0, up = 0, tt = 0;
+    for (var i = 1; i < h.length; i++) {
+      var dt = h[i][0] - h[i - 1][0]; if (dt <= 0) continue;
+      var v = (h[i][1] + h[i - 1][1]) / 2, g = (h[i][2] + h[i - 1][2]) / 2;
+      if (v < 3) continue;
+      eq += v * TX.minetti(g) * dt / 3600; tt += dt; up += g * dt;
+    }
+    return tt > 0 && eq > 0 && up / tt >= 0.5 ? Math.round(tt / eq) : null;
+  };
   // Lauf-Datensatz aus Zustand, Verlauf und Antwort von "end"
   TX.makeRun = function (st, hist, sum) {
     sum = sum || {}; hist = (sum.hist && sum.hist.length ? sum.hist : hist) || [];

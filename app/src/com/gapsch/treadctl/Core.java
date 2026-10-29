@@ -356,12 +356,14 @@ public class Core implements Runnable {
             if ("interval".equals(progType)) runInterval(dt);
             else if ("zones".equals(progType)) runZones(dt, now);
             else if ("route".equals(progType)) runRoute(dt);
+            announceChecks();
         }
         // automatisches Programmende: sanft auf 3 km/h, nach 10 s anhalten
         if (hwStartAt > 0 && now >= hwStartAt) hwFire();
         if (LAEUFT.equals(st) && speed < 0.3f) standT += dt; else standT = 0;
         if (standT >= 8) { standT = 0; doStop("band steht"); note = "Band steht, Lauf pausiert"; }   // Anzeige nie «läuft» bei stehendem Band
         if (LAEUFT.equals(st) && holdLeft > 0) {
+            if (holdLeft > 10 && holdLeft - dt <= 10 && holdTarget > HOLD_SPEED + 0.05) announce(1, cat(new String[]{ "in10", "tempo" }, num(holdTarget)));
             holdLeft -= dt;
             if (holdLeft <= 0) { holdLeft = 0; double t = holdTarget; holdTarget = -1; note = ""; if (t > HOLD_SPEED + 0.05) rampSpeed(t, "programm"); }
         }
@@ -399,7 +401,7 @@ public class Core implements Runnable {
         int i = segIdx < 0 ? 0 : segIdx;
         while (i < segs.length() && progT >= segStart[i] + segs.getJSONObject(i).getDouble("d")) i++;
         if (i >= segs.length()) {
-            progDone = true; rampSpeed(Math.min(tSpeed, 3f), "programm"); endTimer = 0; log("programmende", 0); return;   // in 3-km/h-Stufen auf Gehtempo
+            progDone = true; rampSpeed(Math.min(tSpeed, 3f), "programm"); endTimer = 0; log("programmende", 0); announce(1, "progende"); return;   // in 3-km/h-Stufen auf Gehtempo
         }
         if (i != segIdx) {
             segIdx = i; JSONObject s = segs.getJSONObject(i);
@@ -413,7 +415,7 @@ public class Core implements Runnable {
     void runZones(double dt, long now) throws Exception {
         progT += dt;
         double dur = prog.optDouble("dur", 2700);
-        if (progT >= dur && !progDone) { progDone = true; rampSpeed(Math.min(tSpeed, 3f), "programm"); endTimer = 0; return; }
+        if (progT >= dur && !progDone) { progDone = true; rampSpeed(Math.min(tSpeed, 3f), "programm"); endTimer = 0; announce(1, "progende"); return; }
         if (!auto || progDone) return;
         if (now - manualAt < 120000) return;                 // Handeingabe hat 2 min Vorrang
         float sMin = (float) prog.optDouble("sMin", 6), sMax = (float) prog.optDouble("sMax", 10.5);
@@ -441,7 +443,7 @@ public class Core implements Runnable {
         progT += dt;
         double x = dist * 1000.0;
         if (x >= rp.D) {
-            progDone = true; routeFinish = true; finishT = progT; rampSpeed(Math.min(tSpeed, 3f), "programm"); applyIncl(0f, "programm"); endTimer = 0;
+            progDone = true; routeFinish = true; finishT = progT; rampSpeed(Math.min(tSpeed, 3f), "programm"); applyIncl(0f, "programm"); endTimer = 0; announce(1, "ziel");
             note = "Ziel erreicht"; log("ziel", (float) progT); return;
         }
         int i = rp.idxAt(x);
@@ -508,6 +510,7 @@ public class Core implements Runnable {
 
     void setError(String m) {
         if (!FEHLER.equals(st)) errDuringRun = LAEUFT.equals(st) || PAUSE.equals(st);
+        if (!FEHLER.equals(st) && errDuringRun && m.contains("Schlüssel")) announce(1, "schluessel");
         err = m; st = FEHLER; lastStopAt = clock(); consoleStopAt = lastStopAt;
         endTimer = -1; rampTarget = -1; holdLeft = 0; holdTarget = -1; hwStartAt = 0; armAt = 0;   // nichts Anstehendes ueberlebt einen Fehler
         try { bus.sendEvent(A_STOP); stopSentAt = lastStopAt; } catch (Throwable e) {}
@@ -529,7 +532,7 @@ public class Core implements Runnable {
     }
     void doStop(String from) { try { bus.sendEvent(A_STOP); stopSentAt = clock(); } catch (Throwable e) {} doStopState(from); }
     void doStopState(String from) {
-        if (LAEUFT.equals(st)) { st = PAUSE; pausedAt = clock(); }
+        if (LAEUFT.equals(st)) { st = PAUSE; pausedAt = clock(); announce(1, "pause"); }
         lastStopAt = clock(); if (!"app".equals(from)) consoleStopAt = lastStopAt;
         endTimer = -1; rampTarget = -1; holdLeft = 0; holdTarget = -1; hwStartAt = 0; armAt = 0; src = from;
         if ("app".equals(from)) appLog("stop app"); else log("stop", speed);   // Apps schicken STOP teils zehnmal je Sekunde
@@ -540,6 +543,7 @@ public class Core implements Runnable {
         if (LAEUFT.equals(st) || speed > 0.3f) doStop(from);
         try { bus.putFloat(A_INCL, 0f); } catch (Throwable e) {}
         if (!"app".equals(from)) consoleStopAt = clock();
+        if (elapsed >= 60) announce(1, cat(cat(new String[]{ "laufende" }, num(dist)), cat(new String[]{ "kilometer", "in" }, dur((int) elapsed))));
         JSONObject sum = summary();
         lastSummary = sum;
         try { java.nio.file.Files.write(new File(ctx.getFilesDir(), "letzter-lauf.json").toPath(), sum.toString().getBytes("UTF-8")); } catch (Throwable e) {}   // nicht nur im RAM
@@ -562,7 +566,7 @@ public class Core implements Runnable {
         synchronized (lock) {
             try {
                 if (!"touch".equals(c)) pauseIdle = 0;   // jede Eingabe verlaengert die Pause
-                if (!"touch".equals(c)) log("cmd " + c + " " + j.optString("v", j.optString("d", "")), speed);
+                if (!"touch".equals(c) && !"ghost".equals(c)) log("cmd " + c + " " + j.optString("v", j.optString("d", "")), speed);
                 if ("arm".equals(c)) { armAt = clock(); log("arm", tSpeed); return ok(); }
                 if ("start".equals(c)) {
                     if (!BEREIT.equals(st)) return err("nicht bereit");
@@ -576,6 +580,7 @@ public class Core implements Runnable {
                     new Thread(new Runnable() { public void run() { AppHygiene.trim(ctx); } }).start();   // Speicher fuer Musik und Videos waehrend des Laufs
                     bus.sendEvent(A_START);
                     st = LAEUFT; pausedAt = 0; src = from; note = ""; appBlocked = false; appPendS = appPendI = -1;
+                    annKm = 0; annKmT = 0; annSeg = -1; annRoute = -1; ghostAt = 0;
                     beginHold(tSpeed);
                     bus.putFloat(A_SPEED, tSpeed); bus.putFloat(A_INCL, tIncl);
                     if (prog != null) { progT = 0; segIdx = -1; inclIdx = -1; progDone = false; zoneTimer = 0; lossT = 0; routeFinish = false; if (rp != null) { segIdx = 0; inclIdx = 0; } }
@@ -647,6 +652,19 @@ public class Core implements Runnable {
                 if ("appRelease".equals(c)) { appBlocked = true; appPendS = appPendI = -1; log("app-freigabe", tSpeed); return ok(); }   // «Zurück an Konsole»
                 if ("hideBar".equals(c)) { hideBar = j.optBoolean("on", true); barShown = null; return ok(); }
                 if ("auto".equals(c)) { auto = j.optBoolean("on", true); manualAt = 0; return ok(); }
+                if ("ghost".equals(c)) { double g = j.optDouble("s", Double.NaN); if (!Double.isNaN(g) && Math.abs(g) < 36000) { ghostS = (int) Math.round(g); ghostAt = clock(); } return ok(); }   // Abstand zum Gegner (Oberflaeche)
+                if ("announce".equals(c)) {   // Ansagen: 0 aus, 1 Wechsel, 2 Wechsel und jeder Kilometer; test spielt eine Probe
+                    if (j.has("mode")) { int m = j.optInt("mode", -1); if (m < 0 || m > 2) return err("Stufe 0 bis 2"); annMode = m;
+                        ctx.getSharedPreferences("core", Context.MODE_PRIVATE).edit().putInt("ann", m).apply(); log("ansagen " + m, 0); }
+                    if (j.optBoolean("test")) speak(new String[]{ "probe", "kilometer", "n3", "in", "n5", "minuten", "n12", "puls", "n148" });
+                    JSONArray sy = j.optJSONArray("say");   // einzelne Bausteine (z. B. «Neue Bestzeit» aus der Zusammenfassung)
+                    if (sy != null && sy.length() > 0 && sy.length() <= 12 && annMode > 0) {
+                        String[] k = new String[sy.length()];
+                        for (int q = 0; q < k.length; q++) { k[q] = sy.optString(q); if (!k[q].matches("[a-z0-9]{1,12}")) return err("Baustein ungültig"); }
+                        speak(k);
+                    }
+                    return ok();
+                }
                 if ("profile".equals(c)) {
                     double w = j.optDouble("weight", weight); if (!Double.isNaN(w)) weight = (float) Math.max(35, Math.min(200, w));   // NaN zerstoerte sonst jede Zustandsabfrage (JSON)
                     hfmax = Math.max(120, Math.min(230, j.optInt("hfmax", hfmax))); return ok();
@@ -729,6 +747,73 @@ public class Core implements Runnable {
     }
     /** Handeingabe beendet das Einlaufen sofort (bewusste Wahl des Laeufers). */
     void endHold() { if (holdLeft > 0) { holdLeft = 0; holdTarget = -1; note = ""; } }
+
+    // ---------------- Sprachansagen ----------------
+    /** Ausgabe (Announcer im Dienst; in den Tests null). Stufe: 0 aus, 1 Wechsel und Zustandsaenderungen, 2 zusaetzlich jeder Kilometer. */
+    volatile Announcer announcer; volatile int annMode = 2; final java.util.List<String> said = new java.util.ArrayList<String>();
+    int annKm = 0, annSeg = -1, annRoute = -1; double annKmT = 0; volatile int ghostS = 0; volatile long ghostAt = 0;
+    void announce(int need, String... keys) { if (annMode >= need) speak(keys); }
+    void speak(String[] keys) {
+        synchronized (said) { said.add(String.join(" ", keys)); if (said.size() > 50) said.remove(0); }
+        Announcer a = announcer; if (a != null) a.say(keys);
+    }
+    static String[] cat(String[] a, String[] b) { String[] r = java.util.Arrays.copyOf(a, a.length + b.length); System.arraycopy(b, 0, r, a.length, b.length); return r; }
+    /** Zahl mit einer Nachkommastelle als Bausteine: 12.5 -> n12 komma n5, 12.0 -> n12. */
+    static String[] num(double v) {
+        if (Double.isNaN(v) || v < 0) v = 0;
+        int t = (int) Math.round(v * 10), ip = Math.min(220, t / 10), d = t % 10;
+        return d == 0 ? new String[]{ "n" + ip } : new String[]{ "n" + ip, "komma", "n" + d };
+    }
+    /** Dauer: unter 1 h «5 Minuten 12», sonst «1 Stunde 5 Minuten». */
+    static String[] dur(int s) {
+        int h = s / 3600, m = (s % 3600) / 60, sec = s % 60;
+        if (h > 0) return m > 0 ? new String[]{ "n" + h, h == 1 ? "stunde" : "stunden", "n" + m, m == 1 ? "minute" : "minuten" } : new String[]{ "n" + h, h == 1 ? "stunde" : "stunden" };
+        return sec > 0 ? new String[]{ "n" + m, m == 1 ? "minute" : "minuten", "n" + sec } : new String[]{ "n" + m, m == 1 ? "minute" : "minuten" };
+    }
+    /** Im Lauf (unter lock): 10 s vor einem Abschnittswechsel, kurz vor einem Steigungswechsel der Strecke, jeder Kilometer. */
+    void announceChecks() throws Exception {
+        if (!LAEUFT.equals(st) || annMode == 0) return;
+        if ("interval".equals(progType) && segs != null && !progDone && segIdx >= 0 && segIdx + 1 < segs.length() && holdLeft <= 0) {
+            double left = segStart[segIdx] + segs.getJSONObject(segIdx).getDouble("d") - progT;
+            if (left <= 10 && left > 6 && annSeg != segIdx) {
+                annSeg = segIdx;
+                JSONObject nx = segs.getJSONObject(segIdx + 1); String k = nx.optString("k");
+                boolean last = segIdx + 2 >= segs.length();
+                String lab = "h".equals(k) ? "belastung" : "r".equals(k) ? "erholung" : "w".equals(k) ? (last ? "auslaufen" : "einlaufen") : null;
+                String[] w = lab == null ? new String[]{ "in10" } : new String[]{ "in10", lab };
+                w = cat(w, cat(new String[]{ "tempo" }, num(nx.getDouble("s"))));
+                double ni = nx.optDouble("i", 0);
+                if (Math.abs(ni - tIncl) > 0.05) w = cat(w, cat(new String[]{ "steigung" }, cat(num(ni), new String[]{ "prozent" })));
+                speak(w);
+            }
+        }
+        if ("route".equals(progType) && rp != null && !progDone) {
+            double x = dist * 1000.0; int i = Math.max(0, Math.min(rp.n - 1, rp.idxAt(x)));
+            if (i + 1 < rp.n && annRoute != i + 1 && speed > 0.5f) {
+                boolean incl = Math.abs(rp.in[i + 1] - rp.in[i]) > 0.05;
+                double cs = incl ? rp.a[i + 1] - rp.lead(i + 1) : rp.a[i + 1], sec = (cs - x) / (speed / 3.6);
+                if (sec <= 8 && sec > 0) {
+                    annRoute = i + 1;
+                    double ns = Math.max(S_MIN, rp.sp[i + 1] + offS);
+                    String[] w = new String[]{ "gleich" };
+                    if (incl) w = cat(w, cat(new String[]{ "steigung" }, cat(num(rp.in[i + 1]), new String[]{ "prozent" })));
+                    if (Math.abs(ns - tSpeed) >= 0.3) w = cat(w, cat(new String[]{ "tempo" }, num(ns)));
+                    if (w.length > 1) speak(w);
+                }
+            }
+        }
+        int km = (int) Math.floor(dist + 1e-9);
+        if (km > annKm) {
+            int split = (int) Math.round(elapsed - annKmT); annKm = km; annKmT = elapsed;
+            if (annMode >= 2 && km <= 220) {
+                String[] w = cat(new String[]{ "kilometer", "n" + km, "in" }, dur(split));
+                if (hrOk && hr > 0 && hr <= 220) w = cat(w, new String[]{ "puls", "n" + hr });
+                int ga = Math.abs(ghostS);   // gegen sich selbst laufen: «20 Sekunden vor deinem letzten Lauf»
+                if (clock() - ghostAt < 30000 && ga >= 3 && ga <= 220) w = cat(w, new String[]{ "n" + ga, "sekunden", ghostS < 0 ? "vor" : "hinter", "gegner" });
+                speak(w);
+            }
+        }
+    }
 
     // ---------------- Geraetetasten ----------------
     /** Ansicht der eigenen Oberflaeche (bei jeder Abfrage gemeldet) und ob ihre Startseite gerade vorne ist. */
@@ -882,7 +967,8 @@ public class Core implements Runnable {
         } catch (Throwable e) {}
     }
     /** Ein Schreib-Thread fuer den Laufstand: Schreiben und Loeschen bleiben in ihrer Reihenfolge. */
-    final java.util.concurrent.ExecutorService io = java.util.concurrent.Executors.newSingleThreadExecutor();
+    final java.util.concurrent.ExecutorService io = java.util.concurrent.Executors.newSingleThreadExecutor(new java.util.concurrent.ThreadFactory() {
+        public Thread newThread(Runnable r) { Thread t = new Thread(r, "laufstand"); t.setDaemon(true); return t; } });
     /** Beim Start des Dienstes: Laufstand bis 15 min alt uebernehmen. Laeuft das Band, geht der Lauf weiter, sonst Pause mit Gehtempo. */
     boolean restore() {
         try {
@@ -946,7 +1032,7 @@ public class Core implements Runnable {
             if (fanKnown) o.put("fan", new JSONObject().put("l", Math.max(0, fanLevel)).put("a", fanAuto).put("c", fanLevel >= 0));   // Platz in der Pille bleibt, solange ein Ventilator gespeichert ist
             if (holdLeft > 0) { o.put("hold", Math.ceil(holdLeft)); o.put("holdTo", r1((float) holdTarget)); }
             if (appCtl) o.put("appCtl", true);
-            o.put("erp", erpIdx); o.put("home", homeOurs);
+            o.put("erp", erpIdx); o.put("home", homeOurs); o.put("ann", annMode);
             if (LAEUFT.equals(st) && !appBlocked && appAt > 0 && clock() - appAt < 15000) o.put("app", appName);   // App steuert gerade
             if (hwStartAt > 0) o.put("cd", Math.max(1, (int) Math.ceil((hwStartAt - clock()) / 1000.0))); o.put("top", topPkg); o.put("bar", barShown == null || barShown);
             if (prog != null) o.put("prog", progJson(withHist)); else o.put("prog", JSONObject.NULL);

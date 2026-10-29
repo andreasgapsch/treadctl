@@ -139,6 +139,15 @@ Laufzeit: Tempo-Eingaben ändern `offS` (bis «Zurück zum Plan»), Steigungs-Ei
   2 = 10 min, Werk, 3 = aus); Zustand `erp` (alle 30 s gelesen, -1 unbekannt). Ihr Zeitgeber läuft bei Berührung,
   Gerätetasten und laufendem Band neu an. Die Pille meldet Berührungen in allen Apps und laufende Wiedergabe als
   Befehl `touch` (höchstens alle 20 s), der Dienst sendet dann `EVENT_TOUCH`. So schläft die Konsole nur nach echter Ruhe.
+- Sprachansagen: Befehl `announce {mode}` (0 aus, 1 Wechsel, 2 Wechsel und jeder Kilometer), `{test: true}` spielt eine Probe,
+  `{say: [baustein, ...]}` sagt einzelne Bausteine (nur Namen aus `[a-z0-9]`); Zustand `ann`. Angesagt werden: 10 s vor jedem
+  Abschnittswechsel Phase, Tempo und (bei Änderung) Steigung; auf der Strecke kurz vor einem Wechsel Steigung und Tempo; 10 s vor
+  Ende des Einlaufens das Zieltempo; Pause, Programmende, Ziel, gezogener Schlüssel, Laufende mit Distanz und Zeit; in Stufe 2 jeder
+  Kilometer mit Zwischenzeit, Puls und Abstand zum Gegner. Die Konsole hat keine Sprachausgabe: die App spielt Bausteine
+  (`assets/stimme/*.ogg`, erzeugt mit `tools/stimme/erzeugen.py`, Piper mit der Stimme «Thorsten», Datensatz CC0); Musik wird
+  leiser gestellt, nicht angehalten. Die Bausteine liegen nicht im öffentlichen Repo.
+- Gegen sich selbst laufen: die Oberfläche vergleicht den laufenden Lauf mit dem letzten Lauf derselben Vorlage (bei Strecken mit
+  der Bestzeit) und meldet den Abstand alle 10 s mit `ghost {s}` (negativ = vor dem Gegner) für die Kilometeransage.
 - Startbildschirm: Befehl `home {on}` setzt die bevorzugte Startseite (Alias `.Home` von UiActivity oder die Herstelleroberfläche,
   die installiert bleibt); Zustand `home`. Ohne Umstellung setzt der Dienst beim Start Tread Control. Im Dialog «Profil und
   Bildschirm» unter «Beim Einschalten», dort auch «Herstelleroberfläche öffnen». Zusätze (Route, Demo) über den Alias werden ignoriert.

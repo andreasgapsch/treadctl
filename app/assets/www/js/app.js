@@ -428,7 +428,7 @@
   function saverTxt(m) { return m > 0 ? m + ' min' : 'Aus'; }
   function profileDlg() {
     var pr = TX.profile(), hf = pr.hf, kg = pr.kg, st0 = api.state;
-    var sv = +TX.prefs().saverMin, svI = Math.max(0, SAVER_OPT.indexOf(sv)), erp0 = st0 && st0.erp >= 0 ? st0.erp : -1, erp = erp0, home0 = !st0 || st0.home !== false, home = home0;
+    var sv = +TX.prefs().saverMin, svI = Math.max(0, SAVER_OPT.indexOf(sv)), erp0 = st0 && st0.erp >= 0 ? st0.erp : -1, erp = erp0, home0 = !st0 || st0.home !== false, home = home0, ann0 = st0 && st0.ann >= 0 ? st0.ann : 2, ann = ann0;
     var m = document.createElement('div'); m.className = 'modal blur'; m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true'); m.setAttribute('aria-labelledby', 'prh');
     // zwei Spalten: links Profil (Name, HFmax, Gewicht, Zonen), rechts Bildschirm (Bildschirmschoner, Standby der Konsole)
     m.innerHTML = '<div class="dlg pdlg wide"><h2 id="prh">Profil und Bildschirm</h2><div class="pcols"><div class="pcol">' +
@@ -438,7 +438,10 @@
       '<button data-h="1" aria-label="HFmax erhöhen">' + I('plus') + '</button></div></div>' +
       '<div class="frow"><span class="lab" style="width:120px">Gewicht</span><div class="stp big"><button data-w="-1" aria-label="Gewicht verringern">' + I('minus') + '</button><div class="val"><div class="lab">kg</div><b data-k="kg">' + kg + '</b></div>' +
       '<button data-w="1" aria-label="Gewicht erhöhen">' + I('plus') + '</button></div><div class="mut pkg">für die Kalorienberechnung' + (st0 && st0.weight ? '<br>im Dienst ' + Math.round(st0.weight) + ' kg' : '') + '</div></div>' +
-      '<div class="zpre" data-k="zp"></div></div><div class="pcol pscr">' +
+      '<div class="zpre" data-k="zp"></div>' + '<div class="frow"><span class="lab">Sprachansagen</span><div class="seg" role="radiogroup" aria-label="Sprachansagen">' +
+      '<button role="radio" data-ann="0">Aus</button><button role="radio" data-ann="1">Wechsel</button><button role="radio" data-ann="2">Wechsel und km</button></div>' +
+      '<div class="mut pkg"><button class="lnk" data-x="anntest">Probe hören</button></div></div>' +
+      '</div><div class="pcol pscr">' +
       '<div class="frow"><span class="lab">Bildschirmschoner</span><div class="stp big"><button data-sv="-1" aria-label="Bildschirmschoner früher">' + I('minus') + '</button><div class="val"><div class="lab">nach</div><b data-k="sv"></b></div>' +
       '<button data-sv="1" aria-label="Bildschirmschoner später">' + I('plus') + '</button></div><div class="mut pkg">Uhr auf Schwarz, nur im Stand und ohne Wiedergabe.</div></div>' +
       '<div class="frow"><span class="lab">Standby der Konsole</span><div class="seg" role="radiogroup" aria-label="Standby der Konsole">' +
@@ -456,12 +459,15 @@
       m.querySelector('[data-k="sv"]').textContent = saverTxt(SAVER_OPT[svI]);
       TX.$$('[data-erp]', m).forEach(function (b) { var on = +b.getAttribute('data-erp') === erp; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
       TX.$$('[data-home]', m).forEach(function (b) { var on = (b.getAttribute('data-home') === '1') === home; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
+      TX.$$('[data-ann]', m).forEach(function (b) { var on = +b.getAttribute('data-ann') === ann; b.classList.toggle('on', on); b.setAttribute('aria-checked', on); });
     }
     TX.$$('[data-sv]', m).forEach(function (b) { b.addEventListener('click', function () { svI = TX.clamp(svI + +b.getAttribute('data-sv'), 0, SAVER_OPT.length - 1); scr(); }); });
     TX.$$('[data-erp]', m).forEach(function (b) { b.addEventListener('click', function () { erp = +b.getAttribute('data-erp'); scr(); }); });
     TX.$$('[data-home]', m).forEach(function (b) { b.addEventListener('click', function () { home = b.getAttribute('data-home') === '1'; scr(); }); });
+    TX.$$('[data-ann]', m).forEach(function (b) { b.addEventListener('click', function () { ann = +b.getAttribute('data-ann'); scr(); }); });
     m.addEventListener('click', function (e) {
       var b = e.target.closest('[data-x]'); if (!b) return;
+      if (b.getAttribute('data-x') === 'anntest') { TX.api.cmd('announce', { test: true }); return; }
       if (b.getAttribute('data-x') === 'vendor') { if (!TX.native.vendorUi()) TX.toast('Herstelleroberfläche nicht gefunden'); return; }
       if (b.getAttribute('data-x') === 'ok') {
         TX.saveProfile({ name: (m.querySelector('#pname').value || '').trim() || pr.name, hf: hf, kg: kg });
@@ -469,6 +475,7 @@
         // eine Meldung fuer alles (sonst ueberschreibt «Profil gespeichert» einen Fehler beim Startbildschirm oder Standby)
         var why = function (r) { return r && r.error || 'Dienst nicht erreicht'; };
         Promise.all([
+          ann !== ann0 ? TX.api.cmd('announce', { mode: ann }).then(function (r) { return r && r.ok ? '' : 'Ansagen nicht gesetzt: ' + why(r); }) : '',
           home !== home0 ? TX.api.cmd('home', { on: home }).then(function (r) { return r && r.ok ? '' : 'Startbildschirm nicht gesetzt: ' + why(r); }) : '',
           erp >= 0 && erp !== erp0 ? TX.api.cmd('standby', { i: erp }).then(function (r) { return r && r.ok ? '' : 'Standby nicht gesetzt: ' + why(r); }) : '',
           TX.sendProfile().then(function (r) { return r && r.ok ? '' : 'Profil nur hier gespeichert, Dienst nicht erreicht'; })
@@ -533,12 +540,13 @@
   /* ---------- Zustand verteilen ---------- */
   var OFF = { ok: false, st: 'OFF', err: '', speed: 0, incline: 0, tSpeed: 0, tIncl: 0, hr: 0, hrOk: false, pulled: -1, safe: 0, elapsed: 0, dist: 0, kcal: 0, elev: 0, src: '', prog: null };
   TX.OFF = OFF;
-  var lastSt0 = '';
+  var lastSt0 = '', ghostSent = 0;
   api.on(function (st) {
     trackPause(st);
     // Start auf der Startseite (gruene Taste: Schnellstart): gleich in die Laufansicht
     if (st && lastSt0 === 'BEREIT' && st.st === 'LAEUFT' && curName === 'home') TX.go(TX.trainHash(st));
     if (st) lastSt0 = st.st;
+    if (st && st.st === 'LAEUFT' && Date.now() - ghostSent > 10000) { var gg = TX.ghost.gap(st); if (gg) { ghostSent = Date.now(); api.cmd('ghost', { s: gg.s }); } }
     if (cur) cur.update(st || OFF);
     if (cdl && cdWhat !== 'hw' && !cdOk(st)) cdStop();
     hwCountdown(st);

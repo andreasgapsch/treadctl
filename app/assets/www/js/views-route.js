@@ -227,6 +227,12 @@
   }
   TX.importDlg = importDlg;
 
+  // Gegen sich selbst laufen: Abstand zur Bestzeit (oder zum letzten Lauf) auf dieser Strecke
+  function ghostSpan(st) {
+    var g = TX.ghost.gap(st); if (!g) return '';
+    var c = Math.abs(g.s) < 2 ? '' : g.s < 0 ? ' style="color:var(--go)"' : ' style="color:var(--warn)"';
+    return '<span><span class="lab">' + (g.label === 'Bestzeit' ? 'Bestzeit' : 'Gegner') + '</span><b class="num"' + c + '>' + TX.time(Math.abs(g.s)) + '</b><small>' + (Math.abs(g.s) < 2 ? 'gleich' : g.s < 0 ? 'vor' : 'hinter') + '</small></span>';
+  }
   /* ================= Streckenseite: Planung und Lauf ================= */
   TX.views.strecke = function (prm) {
     var id = prm[0] || '', root = document.createElement('div'); root.className = 'screen v-route'; root.setAttribute('role', 'main');
@@ -464,7 +470,7 @@
         }
         bh = '<div class="offc' + (pr.offS <= -3 ? ' big' : '') + '"><span class="ot"><b>' + esc(line1) + '</b><small>' + esc(line2) + '</small></span><button class="btn lite" data-v="replan">' + I('repeat') + ' Zurück zum Plan</button></div>';
       } else bh = '<div class="tz"><span><span class="lab">Zeit</span><b class="num">' + TX.time(pr.t) + '</b></span><span><span class="lab" style="color:var(--hr)">Puls</span><b class="num" style="color:var(--hr)">' + (st.hr > 0 ? st.hr : TX.NA) + '</b><small>bpm</small></span>' +
-        '<span><span class="lab">Höhe</span><b class="num">' + pr.ele + '</b><small>m</small></span></div>';
+        '<span><span class="lab">Höhe</span><b class="num">' + pr.ele + '</b><small>m</small></span>' + ghostSpan(st) + '</div>';
       if (bot.getAttribute('data-h') !== bh) { bot.setAttribute('data-h', bh); bot.innerHTML = bh; TX.fixGap(bot); }
     }
 

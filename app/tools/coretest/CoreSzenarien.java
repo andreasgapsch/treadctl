@@ -379,6 +379,32 @@ public class CoreSzenarien {
             CoreSzenarien q = new CoreSzenarien(); q.run(0.4); q.c.topPkg = "com.kinomap.training";
             t("Ohne erlaubte App-Steuerung kein Start", q.c.appCmd(FtmsData.OP_START, Double.NaN, "App") == FtmsData.RES_NOT_PERMITTED && q.c.hwStartAt == 0, "");
         }
+        { // 36 Sprachansagen: Abschnittswechsel 10 s vorher, jeder Kilometer, Pause, Ende; Stufe 0 schweigt
+            CoreSzenarien s = new CoreSzenarien(); s.run(0.4);
+            s.cmd("{\"c\":\"program\",\"p\":{\"type\":\"interval\",\"name\":\"T\",\"segs\":[{\"d\":60,\"s\":8,\"i\":1,\"k\":\"w\"},{\"d\":420,\"s\":12.5,\"i\":2,\"k\":\"h\"},{\"d\":120,\"s\":6,\"i\":0,\"k\":\"w\"}]}}");
+            s.startRun(); s.run(70);
+            String all = String.join(" | ", s.c.said);
+            t("Ansage 10 s vor der Belastung mit Tempo und Steigung", all.contains("in10 belastung tempo n12 komma n5 steigung n2 prozent"), all);
+            s.run(420); all = String.join(" | ", s.c.said);
+            t("Ansage vor dem Auslaufen (letzter Abschnitt) und je Kilometer mit Zwischenzeit", all.contains("in10 auslaufen tempo n6 steigung n0 prozent") && all.contains("kilometer n1 in "), all);
+            s.c.hwKey(KeyReader.K_STOP); s.run(10); all = String.join(" | ", s.c.said);
+            t("Pause wird angesagt", all.endsWith("pause") || all.contains("| pause"), all);
+            s.cmd("{\"c\":\"end\"}"); all = String.join(" | ", s.c.said);
+            t("Laufende mit Distanz und Zeit", all.contains("laufende n1 komma") && all.contains("kilometer in n8 minuten"), all.substring(Math.max(0, all.length() - 120)));
+            s.run(20); int n = s.c.said.size(); s.cmd("{\"c\":\"announce\",\"mode\":0}");
+            s.cmd("{\"c\":\"speed\",\"v\":10}"); s.startRun(); s.run(400); s.c.hwKey(KeyReader.K_STOP); s.run(10);
+            t("Stufe 0: keine Ansagen", s.c.said.size() == n && new JSONObject(s.c.stateJson(false)).optInt("ann", -1) == 0, "" + (s.c.said.size() - n));
+            t("Zahlen und Dauer als Bausteine", String.join(" ", Core.num(12.04)).equals("n12") && String.join(" ", Core.num(9.96)).equals("n10") && String.join(" ", Core.dur(3725)).equals("n1 stunde n2 minuten") && String.join(" ", Core.dur(312)).equals("n5 minuten n12"), String.join(" ", Core.num(9.96)));
+        }
+        { // 37 Kilometeransage mit Abstand zum Gegner, Bausteine aus der Oberflaeche nur gueltige Namen
+            CoreSzenarien s = new CoreSzenarien(); s.cmd("{\"c\":\"speed\",\"v\":10}"); s.startRun(); s.run(200);
+            s.cmd("{\"c\":\"ghost\",\"s\":-20}"); s.run(250);
+            String all = String.join(" | ", s.c.said);
+            t("Kilometeransage nennt den Abstand zum letzten Lauf", all.contains("n20 sekunden vor gegner"), all);
+            String bad = s.cmd("{\"c\":\"announce\",\"say\":[\"../x\"]}"), good = s.cmd("{\"c\":\"announce\",\"say\":[\"bestzeit\"]}");
+            t("Ansage aus der Oberfläche: nur Bausteinnamen", bad.contains("false") && good.contains("true") && s.c.said.get(s.c.said.size() - 1).equals("bestzeit"), bad);
+            s.c.hwKey(KeyReader.K_STOP); s.run(15);
+        }
         { // 35 Gruene Taste auf der Startseite: Schnellstart mit 1 km/h, nie ein zuvor geladenes Training; anderswo das geladene
             CoreSzenarien s = new CoreSzenarien(); s.run(0.4);
             String pl = "{\"c\":\"program\",\"p\":{\"type\":\"interval\",\"name\":\"Test\",\"segs\":[{\"d\":300,\"s\":9,\"i\":2}]}}";

@@ -136,6 +136,14 @@
     set('t', TX.time(z ? 0 : st.elapsed)); set('d', TX.f2(z ? 0 : st.dist)); set('k', String(z ? 0 : Math.round(st.kcal || 0)));
     set('p', st.st === 'LAEUFT' ? TX.pace(st.speed) : '--:--'); set('x', x);
     set('h', st.hr > 0 ? String(st.hr) : '--');
+    // gegen sich selbst laufen: die Kalorienkachel zeigt den Abstand zum Gegner (gleiche Strecke oder Vorlage)
+    var g = TX.ghost.gap(st), ke = root.querySelector('[data-k="mk"]'), tile = ke && ke.closest('.m');
+    if (tile) {
+      var lab = tile.querySelector('.lab'), unit = tile.querySelector('small'), want = g ? (g.label === 'Bestzeit' ? 'Bestzeit' : 'Gegner') : 'Kalorien';
+      if (lab.textContent !== want) lab.textContent = want;
+      if (g) { set('k', TX.time(Math.abs(g.s))); var u = Math.abs(g.s) < 2 ? 'gleich' : g.s < 0 ? 'vor' : 'hinter'; if (unit.textContent !== u) unit.textContent = u; tile.classList.toggle('ahead', g.s < -1); tile.classList.toggle('behind', g.s > 1); }
+      else { if (unit.textContent !== 'kcal') unit.textContent = 'kcal'; tile.classList.remove('ahead', 'behind'); }
+    }
   };
 
   /* ---------- Pausenreihe (Steuerleiste und Pausen-Dialog gleich aufgebaut) ----------

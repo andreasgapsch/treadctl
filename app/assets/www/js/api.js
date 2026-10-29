@@ -56,7 +56,7 @@
 
   /* ---------- Demo: simuliertes Band nach API v3 ---------- */
   function Sim() {
-    this.s = { ok: true, st: 'BEREIT', err: '', speed: 0, incline: 0, tSpeed: 1.0, tIncl: 0.0, hr: 72, hrOk: true, hrSrc: 'geraet', weight: 75, erp: 2, home: true, pulled: 0, safe: 1,
+    this.s = { ok: true, st: 'BEREIT', err: '', speed: 0, incline: 0, tSpeed: 1.0, tIncl: 0.0, hr: 72, hrOk: true, hrSrc: 'geraet', weight: 75, erp: 2, home: true, ann: 2, pulled: 0, safe: 1,
       elapsed: 0, dist: 0, kcal: 0, elev: 0, src: 'ui', prog: null, note: '' };
     this.p = null; this.hist = []; this.hrv = 72; this.zt = 0; this.lastSum = null; this.manualAt = 0; this.armAt = 0; this.endT = -1; this.rampT = -1; this.rampLeft = 0; this.rampFrom = 'programm'; this.hold = 0; this.holdTo = -1; this.hwAt = 0; this.hwResume = false;
   }
@@ -342,6 +342,8 @@
       case 'inclZero': if (s.st !== 'PAUSE') return no('Nur in PAUSE'); s.tIncl = 0; return { ok: true };
       case 'standby': if (!(b.i >= 0 && b.i <= 3)) return no('Stufe 0 bis 3'); s.erp = +b.i; return { ok: true };
       case 'home': s.home = b.on !== false; return { ok: true };
+      case 'ghost': return { ok: true };
+      case 'announce': if (b.mode !== undefined) { if (!(b.mode >= 0 && b.mode <= 2)) return no('Stufe 0 bis 2'); s.ann = +b.mode; } return { ok: true };
       case 'touch': return { ok: true };
     }
     return no('Befehl unbekannt');

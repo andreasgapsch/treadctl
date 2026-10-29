@@ -48,6 +48,8 @@ public class TreadDaemon extends Service {
         // Herstellerdienste (Motorboard, Hardware, Standby) vor dem Kern: als Startbildschirm laeuft der Herstellerstart nicht
         try { int n = VendorServices.ensure(this); if (n > 0) Log.i(T, "herstellerdienste gestartet: " + n); } catch (Throwable e) {}
         core = new Core(this);
+        core.announcer = new Announcer(this);   // Sprachansagen (eigener Thread)
+        try { core.annMode = getSharedPreferences("core", MODE_PRIVATE).getInt("ann", 2); } catch (Throwable e) {}
         Thread t = new Thread(core, "core"); t.setPriority(Thread.MAX_PRIORITY); t.start();
         new KeyReader(core).start();   // Tasten und Drehregler der Konsole
         media = new MediaWatch(this);   // Mini-Player

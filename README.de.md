@@ -157,8 +157,8 @@ geprüften Produkt:
    nachgeprüft. Die Noten sind ehrlich: Eine Runde fiel auf 6.5, weil sie einen kritischen Fehler bei
    Busausfällen fand. Dazu ein eigener Stabilitätsreview (Neustarts, Bluetooth, Uhrensprünge,
    hängende Oberfläche) und Leistungsmessungen am Gerät (Ruhelast der Oberfläche von 14 auf 3 %).
-5. **Automatisierte Nachweise:** 119 Szenariotests der Steuerlogik gegen ein simuliertes Band
-   (inklusive echter Hauptschleife bei Busausfall, Neustart und hängendem Bus), 119 Prüfpunkte für
+5. **Automatisierte Nachweise:** 127 Szenariotests der Steuerlogik gegen ein simuliertes Band
+   (inklusive echter Hauptschleife bei Busausfall, Neustart und hängendem Bus), 120 Prüfpunkte für
    die Oberfläche (Darstellung, Barrierefreiheit, Lighthouse), 33 Sicherheitstests am Gerät, ein
    Zeitraffer-Simulator für Streckenpläne und Fehlertests am echten Band mit Person.
 
@@ -187,6 +187,7 @@ Gestaltungsentscheid lief über den Besitzer.
 export TREADXP_ADB=192.168.1.50:5555          # Adresse der Konsole
 # Schlüssel nach keys/platform.pk8 und keys/platform.x509.pem legen
 python3 app/tools/kacheln-paket.py             # optional: Offline-Luftbild für die Beispielstrecken
+(cd tools/stimme && python3 -m venv .venv && .venv/bin/pip install piper-tts && .venv/bin/python erzeugen.py)   # optional: Ansagen (Modell: siehe Skript)
 bash app/build.sh
 adb connect $TREADXP_ADB && adb -s $TREADXP_ADB root
 adb -s $TREADXP_ADB install -r app/out/treadctl.apk

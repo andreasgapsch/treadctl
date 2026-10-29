@@ -155,7 +155,7 @@ agent (Claude Code) built it within a few days, from reverse engineering to a te
    scores are honest: one round dropped to 6.5 because it found a critical bus-failure bug. On top
    of that a dedicated stability review (restarts, Bluetooth, clock jumps, hanging UI) and
    performance measurements on the device (UI idle load down from 14 % to 3 %).
-5. **Automated evidence:** 119 scenario tests of the control logic against a simulated treadmill
+5. **Automated evidence:** 127 scenario tests of the control logic against a simulated treadmill
    (including the real main loop through bus failures, restarts and a hanging bus), 119 UI audit
    checks (rendering, accessibility, Lighthouse), 33 security tests on the device, a time-lapse
    simulator for route plans, and fault tests on the real belt with a person present.
@@ -185,6 +185,7 @@ decision went through the owner.
 export TREADXP_ADB=192.168.1.50:5555          # console address
 # put the key into keys/platform.pk8 and keys/platform.x509.pem
 python3 app/tools/kacheln-paket.py             # optional: offline aerial tiles for the sample routes
+(cd tools/stimme && python3 -m venv .venv && .venv/bin/pip install piper-tts && .venv/bin/python erzeugen.py)   # optional: voice clips (model: see script)
 bash app/build.sh
 adb connect $TREADXP_ADB && adb -s $TREADXP_ADB root
 adb -s $TREADXP_ADB install -r app/out/treadctl.apk

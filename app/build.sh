@@ -9,7 +9,7 @@ $BT/d8 --min-api 29 --output out $(find out/classes -name '*.class')
 $BT/aapt2 link -I "$AJ" --manifest AndroidManifest.xml --min-sdk-version 29 \
   --target-sdk-version 29 -A assets -o out/base.apk
 cd out && rm -rf stage && mkdir stage && (cd stage && unzip -oq ../base.apk && cp ../classes.dex .)
-(cd stage && zip -qr ../unsigned.apk .)
+(cd stage && zip -qr -n .ogg ../unsigned.apk .)   # Ansagen (.ogg) unkomprimiert: der Player oeffnet sie direkt im APK
 $BT/zipalign -f 4 unsigned.apk aligned.apk
 $BT/apksigner sign --key "$K/platform.pk8" --cert "$K/platform.x509.pem" \
   --out treadctl.apk aligned.apk

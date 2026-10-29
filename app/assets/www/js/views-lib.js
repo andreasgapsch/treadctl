@@ -571,11 +571,15 @@
           '<button class="btn go" data-v="hfset">' + I('heart') + ' Als HFmax übernehmen (' + mh + ')</button>') +
         '<button class="btn ghost" data-v="cool">Auslaufen 5 min · 6.0 km/h</button></div></section>';
     }
+    // neue Bestzeiten (1, 5, 10 km, Halbmarathon, Strecke) und steigungsbereinigte Pace
+    var recs = TX.records(r), gp = TX.gapPace(r);
+    if (recs.length && Date.now() - r.ts < 120000 && TX.runs()[0] && TX.runs()[0].id === r.id && !TX.recSaid[r.id]) { TX.recSaid[r.id] = 1; TX.api.cmd('announce', { say: ['bestzeit'] }); }
     root.innerHTML = '<main class="body"><section class="card sumh"><div class="ph"></div><div class="shade"></div>' +
       '<div class="lab" style="color:var(--go)">Gespeichert · ' + TX.WD[d.getDay()] + ' ' + TX.dshort(r.ts) + '<span class="demo-tag">DEMO</span></div><h1>' + head + '</h1>' +
       '<div class="mut">' + esc(TX.nm(r.name)) + ' · ' + TX.hm(r.ts) + ' Uhr</div>' +
+      (recs.length ? '<div class="recs">' + recs.map(function (x) { return '<span class="chip rec">' + I('check') + ' Bestzeit ' + esc(x.label) + ' ' + TX.time(x.t) + '</span>'; }).join('') + '</div>' : '') +
       '<div class="bigk"><div><div class="lab">Distanz</div><div class="num">' + TX.f2(r.dist) + '<small>km</small></div></div><div><div class="lab">Zeit</div><div class="num">' + TX.time(r.elapsed) + '</div></div>' +
-      '<div><div class="lab">Ø Pace</div><div class="num">' + TX.avgPace(r.dist, r.elapsed) + '<small>/km</small></div></div>' +
+      '<div><div class="lab">Ø Pace</div><div class="num">' + TX.avgPace(r.dist, r.elapsed) + '<small>/km</small></div>' + (gp ? '<div class="gapp" title="steigungsbereinigt nach Minetti">bereinigt ' + TX.time(gp) + ' /km</div>' : '') + '</div>' +
       (rt && rt.up ? '<div><div class="lab">Höhenmeter Band</div><div class="num">' + r.elev + '<small>von ' + Math.round(rt.up) + ' m</small></div></div>' : '<div><div class="lab">Höhenmeter</div><div class="num">' + r.elev + '<small>m</small></div></div>') +
       '<div><div class="lab">Ø Puls</div><div class="num" style="color:var(--hr)">' + (r.avgHr || '--') + '<small>bpm</small></div></div><div><div class="lab">Kalorien</div><div class="num">' + r.kcal + '<small>kcal</small></div></div></div>' +
       '<div class="week"><div class="lab">' + wk.label + '</div><div class="wbars" aria-hidden="true">' + wk.days.map(function (km, i) {

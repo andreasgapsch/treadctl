@@ -125,6 +125,7 @@ svg.i.f{fill:currentColor;stroke:none}
 .m{flex:1;min-width:0;padding:12px 20px;border-left:1px solid var(--line)}
 .m:first-child{border-left:0}
 .m .lab{font-size:14px;letter-spacing:1.2px;white-space:nowrap}
+.m.ahead .v{color:var(--go)}.m.behind .v{color:var(--warn)}
 .m .v{font-size:42px;line-height:1.05;margin-top:2px;white-space:nowrap}
 .m .v small{font-size:17px;color:var(--mut);font-weight:600;margin-left:4px;letter-spacing:0}
 .m.hr .lab{color:var(--hr)}
@@ -1132,3 +1133,5 @@ svg.i.f{fill:currentColor;stroke:none}
 .set{overflow-y:auto}
 .set .trow{min-height:60px;padding:5px 0}
 .pdlg .lnk{background:none;border:0;color:var(--spd);font:inherit;font-weight:700;padding:0 4px;min-height:48px;text-decoration:underline;text-underline-offset:3px}
+.sumh .recs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}.sumh .rec{background:rgba(47,210,122,.16);border-color:rgba(47,210,122,.45);color:#c8f5dc;font-weight:700;height:32px;padding:0 12px}
+.sumh .rec svg{width:16px;height:16px}.sumh .gapp{font-size:14px;color:var(--mut);margin-top:2px;font-weight:600;font-variant-numeric:tabular-nums}

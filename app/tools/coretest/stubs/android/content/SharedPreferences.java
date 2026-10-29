@@ -7,6 +7,7 @@ public class SharedPreferences {
     public Editor edit() { return new Editor(); }
     public class Editor {
         public Editor putBoolean(String k, boolean v) { m.put(k, v); return this; }
+        public Editor putInt(String k, int v) { m.put(k, v); return this; }
         public void apply() {}
     }
 }

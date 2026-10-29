@@ -835,6 +835,26 @@ if (!ONLY.length) {
       b && /^5:00 · 0\.12 km/.test(b.t) && b2.n === n0 + 1 && b2.h.startsWith('#/summary/') && c && /^1:30 · 0\.31 km/.test(c) && c2.n === n0 + 1 && c2.h === '#/' && !c2.open;
     return { ok, d: `«${a && a.h}» «${a && a.t.slice(0, 16)}» Vorgabe ${a && a.foc}: verworfen ${a2.n - n0}, ${a2.h}; 5:00/0.12 km gespeichert ${b2.n - n0}; /summary/last «${(c || '').slice(0, 16)}», Zurücktaste verwirft, ${c2.h}` };
   });
+  await flow('Gegen sich selbst laufen und Bestzeiten: Kachel «Gegner» im Lauf einer Vorlage, Bestzeit 5 km und bereinigte Pace in der Zusammenfassung', async p => {
+    await p.goto(BASE + '?demo=1#/'); await p.waitForTimeout(400);
+    await p.evaluate(() => {
+      const H = (min, kmh, incl) => { const h = []; for (let t = 0; t <= min * 60; t += 10) h.push([t, kmh, incl, 140]); return h; };
+      const now = Date.now();
+      localStorage.setItem('tx.history.v1', JSON.stringify({ v: 2, runs: [
+        { id: 'g2', ts: now - 3600e3, name: 'Hügel', type: 'frei', elapsed: 1500, dist: 5.0, kcal: 400, elev: 200, avgHr: 150, maxHr: 160, hist: H(25, 12, 4) },
+        { id: 'g1', ts: now - 86400e3, name: 'Schwelle 5 × 4 min', planId: 'p-schwelle', type: 'interval', elapsed: 2880, dist: 7.2, kcal: 500, elev: 0, avgHr: 150, maxHr: 170, hist: H(48, 9, 0) },
+        { id: 'g0', ts: now - 2 * 86400e3, name: 'Alt', type: 'frei', elapsed: 1800, dist: 5.0, kcal: 400, elev: 0, avgHr: 150, maxHr: 160, hist: H(30, 10, 0) }] }));
+    });
+    await p.goto(BASE + '?demo=1&szenario=intervall#/'); await p.waitForTimeout(600);
+    await p.evaluate(() => { location.hash = TX.trainHash(TX.api.state); }); await p.waitForTimeout(1500);
+    const a = await p.evaluate(() => { const e = document.querySelector('[data-k="mk"]'), m = e && e.closest('.m');
+      return { lab: m && m.querySelector('.lab').textContent, v: e && e.textContent, u: m && m.querySelector('small').textContent, cls: m && m.className }; });
+    await p.evaluate(() => { location.hash = '#/summary/g2'; }); await p.waitForTimeout(800);
+    const b = await p.evaluate(() => ({ recs: Array.from(document.querySelectorAll('.sumh .rec')).map(x => x.textContent.trim()), gap: (document.querySelector('.sumh .gapp') || {}).textContent || '' }));
+    const ok = /^(Gegner|Bestzeit)$/.test(a.lab) && /^\d+:\d\d$/.test(a.v) && /^(vor|hinter|gleich)$/.test(a.u) &&
+      b.recs.some(x => /Bestzeit 5 km 25:00/.test(x)) && /^bereinigt \d:\d\d \/km$/.test(b.gap);
+    return { ok, d: `Kachel «${a.lab}» ${a.v} ${a.u} (${a.cls}); Zusammenfassung [${b.recs}] «${b.gap}»` };
+  });
   await flow('Verlauf: einmalige Bereinigung kurzer Alt-Einträge (unter 120 s UND unter 0.2 km), Fassung im Schlüssel tx.history.v1', async p => {
     await p.addInitScript(() => {
       if (sessionStorage.getItem('hc')) return; sessionStorage.setItem('hc', '1');
