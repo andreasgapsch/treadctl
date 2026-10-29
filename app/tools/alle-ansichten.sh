@@ -4,10 +4,12 @@
 A="adb -s ${TREADXP_ADB:?TREADXP_ADB=ip:5555 setzen}"
 D=./captures/feedback; rm -rf "$D"; mkdir -p "$D"
 N=0
-shot() { N=$((N+1)); F=$(printf "%02d-%s.png" $N "$1"); sleep "${3:-4}"; $A exec-out screencap -p > "$D/$F"; echo "$N|$F|$2|$4" >> "$D/liste.txt"; echo "  $N $1"; }
-ui() { if [ $# -ge 2 ]; then $A shell "am start -n com.gapsch.treadctl/.UiActivity --es route '$1' --es demo '$2'" >/dev/null 2>&1; else $A shell am start -n com.gapsch.treadctl/.UiActivity --es route "$1" >/dev/null 2>&1; fi; }
+# Umschalttaste haelt den Bildschirmschoner fern (keydown setzt die Ruhezeit zurueck, loest sonst nichts aus)
+wake() { $A shell input keyevent 59; }
+shot() { wake; N=$((N+1)); F=$(printf "%02d-%s.png" $N "$1"); sleep "${3:-4}"; $A exec-out screencap -p > "$D/$F"; echo "$N|$F|$2|$4" >> "$D/liste.txt"; echo "  $N $1"; }
+ui() { wake; if [ $# -ge 2 ]; then $A shell "am start -n com.gapsch.treadctl/.UiActivity --es route '$1' --es demo '$2'" >/dev/null 2>&1; else $A shell am start -n com.gapsch.treadctl/.UiActivity --es route "$1" >/dev/null 2>&1; fi; }
 uilive() { $A shell am start -n com.gapsch.treadctl/.UiActivity --es route "$1" --es demo "" >/dev/null 2>&1; sleep 1; $A shell am start -n com.gapsch.treadctl/.UiActivity --es route "$1" >/dev/null 2>&1; }
-tap() { $A shell input tap "$1" "$2"; }
+tap() { wake; $A shell input tap "$1" "$2"; }
 pill() { python3 ./app/tools/pillsim.py "$1" > /tmp/ps.json; $A push /tmp/ps.json /data/local/tmp/ps.json >/dev/null; $A shell 'cp /data/local/tmp/ps.json /data/data/com.gapsch.treadctl/files/pillsim.json'; }
 nopill() { $A shell 'rm -f /data/data/com.gapsch.treadctl/files/pillsim.json'; }
 home() { $A shell input keyevent 3; }
@@ -22,6 +24,8 @@ sleep 2; tap 1345 113;              shot player-fenster    "Player-Fenster: Quel
 tap 1765 218; sleep 1
 tap 1170 113;                       shot pulsmenue         "Pulsmenü am Pulschip" 3 live
 tap 300 600; sleep 1
+uilive "/"; sleep 2; tap 1856 112;   shot profil            "Profil und Bildschirm" 3 live
+$A shell input keyevent 4; sleep 1
 ui "/geraete";                      shot geraete           "Geräte: Pulsmesser, Ventilator, Lautsprecher" 5 live
 ui "/run";                          shot schnellstart      "Schnellstart, bereit" 4 live
 ui "/interval/p-schwelle";          shot intervall-bereit  "Intervall «Schwelle 5 × 4 min», bereit" 4 live
@@ -62,6 +66,7 @@ ui "/history" "";                                  shot verlauf-demo       "Verl
 ui "/summary" "";                                  shot zusammenfassung    "Zusammenfassung eines Laufs" 4 demo
 ui "/" "saver=1";                                  shot bildschirmschoner  "Bildschirmschoner" 4 demo
 
+[ "$NUR_WEB" = 1 ] && { echo "Fertig (nur Weboberflaeche): $N Bilder in $D"; exit 0; }
 echo "Pille (simulierte Werte ueber der Herstelleroberflaeche)"
 uilive "/"; sleep 2; home; sleep 2
 $A shell input keyevent 3; sleep 2;                shot pille-ruhe         "Pille im Ruhezustand (Griff unten Mitte)" 3 pille
