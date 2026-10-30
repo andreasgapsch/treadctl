@@ -679,11 +679,12 @@ svg.i.f{fill:currentColor;stroke:none}
 /* Profil-Dialog */
 .pdlg{text-align:left}
 .pdlg .frow{display:flex;align-items:center;gap:16px;margin-top:16px}
-.pdlg .frow label{width:120px;font-weight:700;color:var(--mut);font-size:13px}
+.pdlg .frow label{width:88px;flex:none;font-weight:700;color:var(--mut);font-size:13px}
 .pdlg .frow input{flex:1;height:56px;border-radius:12px;background:var(--s2);border:1px solid var(--line2);padding:0 12px;font-size:17px}
-.zpre{display:flex;gap:8px;margin-top:16px}
-.zpre div{flex:1;background:var(--s2);border-radius:14px;padding:8px;text-align:center;font-size:13px;color:var(--mut)}
-.zpre b{display:block;font-size:15px}
+.pdlg .plab{flex:none;width:88px}   /* feste Breite: Steller von HFmax und Gewicht stehen genau untereinander */
+.pzones{flex:1;min-width:0;display:flex;gap:4px}
+.pzones div{flex:1;min-width:0;background:var(--s3);border-radius:8px;padding:4px 0;text-align:center;font-size:13px;color:var(--mut);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pzones b{display:block;font-size:13px}
 
 /* ================= Streckenmodus ================= */
 /* Bibliothek */
@@ -1135,7 +1136,7 @@ svg.i.f{fill:currentColor;stroke:none}
 /* Einstellungen der App-Seite: alle Schalter ohne Scrollen sichtbar, sonst scrollt die Karte */
 .set{overflow-y:auto}
 .set .trow{min-height:60px;padding:8px 0}
-.pdlg .lnk{background:none;border:0;color:var(--spd);font:inherit;font-weight:700;padding:0 4px;min-height:48px;text-decoration:underline;text-underline-offset:3px}
+.pdlg .lnk{white-space:nowrap;flex:none;background:none;border:0;color:var(--spd);font:inherit;font-weight:700;padding:0 4px;min-height:48px;text-decoration:underline;text-underline-offset:3px}
 .sumh .recs{display:flex;align-items:center;gap:8px;margin-top:12px;white-space:nowrap;overflow:hidden}.sumh .recs .rl{display:flex;align-items:center;gap:8px;color:var(--go);font-size:13px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase}
 .sumh .rec{background:rgba(47,210,122,.16);border-color:rgba(47,210,122,.45);color:#c8f5dc;font-weight:700;height:32px;padding:0 12px;flex:none}
 .sumh .recs svg{width:16px;height:16px}.sumh .gapp{font-size:15px;color:var(--mut);margin-top:2px;font-weight:600;font-variant-numeric:tabular-nums}

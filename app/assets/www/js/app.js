@@ -434,11 +434,11 @@
     m.innerHTML = '<div class="dlg pdlg wide"><h2 id="prh">Profil und Bildschirm</h2><div class="pcols"><div class="pcol">' +
       '<div class="mut" style="margin-top:4px">Die Pulszonen werden aus der maximalen Herzfrequenz berechnet.</div>' +
       '<div class="frow"><label for="pname">Name</label><input id="pname" maxlength="30" value="' + esc(pr.name) + '" autocomplete="off"></div>' +
-      '<div class="frow"><span class="lab" style="width:120px">HFmax</span><div class="stp big"><button data-h="-1" aria-label="HFmax verringern">' + I('minus') + '</button><div class="val"><div class="lab">bpm</div><b data-k="hf">' + hf + '</b></div>' +
-      '<button data-h="1" aria-label="HFmax erhöhen">' + I('plus') + '</button></div></div>' +
-      '<div class="frow"><span class="lab" style="width:120px">Gewicht</span><div class="stp big"><button data-w="-1" aria-label="Gewicht verringern">' + I('minus') + '</button><div class="val"><div class="lab">kg</div><b data-k="kg">' + kg + '</b></div>' +
+      '<div class="frow"><span class="lab plab">HFmax</span><div class="stp big"><button data-h="-1" aria-label="HFmax verringern">' + I('minus') + '</button><div class="val"><div class="lab">bpm</div><b data-k="hf">' + hf + '</b></div>' +
+      '<button data-h="1" aria-label="HFmax erhöhen">' + I('plus') + '</button></div><div class="pzones" data-k="zp" aria-label="Pulszonen ab bpm"></div></div>' +
+      '<div class="frow"><span class="lab plab">Gewicht</span><div class="stp big"><button data-w="-1" aria-label="Gewicht verringern">' + I('minus') + '</button><div class="val"><div class="lab">kg</div><b data-k="kg">' + kg + '</b></div>' +
       '<button data-w="1" aria-label="Gewicht erhöhen">' + I('plus') + '</button></div><div class="mut pkg">für die Kalorienberechnung' + (st0 && st0.weight ? '<br>im Dienst ' + Math.round(st0.weight) + ' kg' : '') + '</div></div>' +
-      '<div class="zpre" data-k="zp"></div>' + '<div class="frow"><span class="lab">Sprachansagen</span><div class="seg" role="radiogroup" aria-label="Sprachansagen">' +
+      '<div class="frow"><span class="lab">Sprachansagen</span><div class="seg" role="radiogroup" aria-label="Sprachansagen">' +
       '<button role="radio" data-ann="0">Aus</button><button role="radio" data-ann="1">Wechsel</button><button role="radio" data-ann="2">Wechsel und km</button></div>' +
       '<div class="mut pkg"><button class="lnk" data-x="anntest">Probe hören</button></div></div>' +
       '</div><div class="pcol pscr">' +
@@ -452,7 +452,8 @@
       '<div class="mut pkg">Auch die Home-Taste führt dorthin. <button class="lnk" data-x="vendor">Herstelleroberfläche öffnen</button></div></div>' +
       '</div></div>' +
       '<div class="acts"><a class="btn ghost" href="#/geraete" data-x="dev">' + I('heart') + ' Geräte koppeln</a><span style="flex:1"></span><button class="btn ghost" data-x="no">Abbrechen</button><button class="btn go" data-x="ok">' + I('check') + ' Speichern</button></div></div>';
-    function zp() { m.querySelector('[data-k="zp"]').innerHTML = TX.zones(hf).map(function (z) { return '<div><b style="color:' + TX.ZT[z.z] + '">Z' + z.z + '</b>' + z.txt + '</div>'; }).join(''); m.querySelector('[data-k="hf"]').textContent = hf; m.querySelector('[data-k="kg"]').textContent = kg; }
+    // Zonen klein in der HFmax-Zeile (Untergrenze je Zone, ganzer Bereich im title)
+    function zp() { m.querySelector('[data-k="zp"]').innerHTML = TX.zones(hf).map(function (z) { return '<div title="' + TX.zoneName(z.z) + ': ' + z.txt + ' bpm"><b style="color:' + TX.ZT[z.z] + '">Z' + z.z + '</b>' + (z.z === 1 ? z.txt : z.lo) + '</div>'; }).join(''); m.querySelector('[data-k="hf"]').textContent = hf; m.querySelector('[data-k="kg"]').textContent = kg; }
     TX.$$('[data-h]', m).forEach(function (b) { TX.holdRepeat(b, function () { hf = TX.clamp(hf + +b.getAttribute('data-h'), 120, 230); zp(); }); });
     TX.$$('[data-w]', m).forEach(function (b) { TX.holdRepeat(b, function (n) { kg = TX.clamp(kg + +b.getAttribute('data-w') * (n > 8 ? 5 : 1), 35, 200); zp(); }); });
     function scr() {
