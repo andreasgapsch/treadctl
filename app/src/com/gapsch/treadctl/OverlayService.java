@@ -448,11 +448,12 @@ public class OverlayService extends Service {
                 add(mb[0], 10);
                 break; }
             case "col": {
-                // Minimalpille im Lauf: Pace, Puls, Steigung; antippen klappt die Steuerung auf
-                LinearLayout.LayoutParams w = new LinearLayout.LayoutParams(dp(170), ViewGroup.LayoutParams.WRAP_CONTENT);
-                cPace = cell("none", SPD, "PACE", SPD); pill.addView(rv(cPace[0]), new LinearLayout.LayoutParams(w));
-                cHr = cell("heart", HR, "PULS", HR); pill.addView(rv(cHr[0]), new LinearLayout.LayoutParams(w));
+                // Minimalpille im Lauf: Steigung, Tempo, Distanz, Zeit; antippen klappt die Steuerung auf
+                LinearLayout.LayoutParams w = new LinearLayout.LayoutParams(dp(150), ViewGroup.LayoutParams.WRAP_CONTENT);
                 cIncl = cell("none", INC, "STEIGUNG", INC); pill.addView(rv(cIncl[0]), new LinearLayout.LayoutParams(w));
+                cSpd = cell("none", SPD, "TEMPO", SPD); pill.addView(rv(cSpd[0]), new LinearLayout.LayoutParams(w));
+                cDist = cell("none", 0xFFCFD2DC, "DISTANZ", 0xFFA4A9BB); pill.addView(rv(cDist[0]), new LinearLayout.LayoutParams(w));
+                cTime = cell("none", 0xFFCFD2DC, "ZEIT", 0xFFA4A9BB); pill.addView(rv(cTime[0]), new LinearLayout.LayoutParams(w));
                 pill.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { expand(); } });
                 for (int i = 0; i < pill.getChildCount(); i++) { pill.getChildAt(i).setOnClickListener(new View.OnClickListener() { public void onClick(View v) { expand(); } }); }
                 break; }
@@ -478,9 +479,8 @@ public class OverlayService extends Service {
                 add(pb("apps", WHITE, new Runnable() { public void run() { openUi("/apps"); } }), 8);
                 break; }
             case "pause": {
+                // Nur WEITER (links) und BEENDEN (rechts); die Steigung faehrt beim Beenden selbst auf 0.
                 // Mitte (STOP-Stelle) ist ein inaktives Statusfeld: ein Doppeltipp auf STOP loest nie einen Befehl aus.
-                add(pb("menu", WHITE, new Runnable() { public void run() { openUi(home()); } }), 0);
-                cTime = cell("clock", 0xFFCFD2DC, "PAUSE · GESAMT", HR); fixW(cTime, 164); add(cTime[0], 4);
                 final View w = bigBtn("WEITER", "play", GO, 0xFF03210F, null);
                 w.setOnClickListener(new View.OnClickListener() { public void onClick(View v) { if (Core.clock() - modeAt < 1000) return; touch(); countdown((LinearLayout) w, "resume"); } });
                 ((LinearLayout) w).setMinimumWidth(dp(252));
@@ -490,22 +490,17 @@ public class OverlayService extends Service {
                     while (wl.getChildCount() > 0) { View c0 = wl.getChildAt(0); ViewGroup.LayoutParams l0 = c0.getLayoutParams(); wl.removeViewAt(0); top1.addView(c0, l0); }
                     wl.setOrientation(LinearLayout.VERTICAL); wl.addView(top1); weiterSub.setGravity(Gravity.CENTER); wl.addView(weiterSub);
                 }
-                add(w, 6);
+                add(w, 0);
                 LinearLayout st = new LinearLayout(this); st.setGravity(Gravity.CENTER); st.setOrientation(LinearLayout.VERTICAL);
-                st.setBackground(null); st.setClickable(false); st.setMinimumWidth(dp(200)); st.setMinimumHeight(dp(56));
+                st.setBackground(null); st.setClickable(true); st.setMinimumWidth(dp(320)); st.setMinimumHeight(dp(56));   // nimmt Tipps ab, tut nichts
                 TextView st1 = new TextView(this); st1.setText("■  BAND STEHT"); st1.setTextColor(0xFFC9CCD8); st1.setTypeface(Typeface.DEFAULT_BOLD); st1.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 17); st1.setLetterSpacing(.08f);
                 pauseInfo = new TextView(this); pauseInfo.setTextColor(0xFFE9C9CC); pauseInfo.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
                 st1.setGravity(Gravity.CENTER); pauseInfo.setGravity(Gravity.CENTER);
-                statusField = st; st.addView(st1, new LinearLayout.LayoutParams(dp(200), ViewGroup.LayoutParams.WRAP_CONTENT)); st.addView(pauseInfo, new LinearLayout.LayoutParams(dp(200), ViewGroup.LayoutParams.WRAP_CONTENT)); add(st, 10);
-                View z = bigBtn("STEIGUNG AUF 0", "down", 0xFF252937, INC, new Runnable() { public void run() { cmd("inclZero"); } });
-                ((LinearLayout) z).setMinimumWidth(dp(252));
-                if (s == null || s.optDouble("tIncl") <= 0.05) { z.setAlpha(0.4f); z.setEnabled(false); }
-                add(z, 10);
+                statusField = st; st.addView(st1, new LinearLayout.LayoutParams(dp(320), ViewGroup.LayoutParams.WRAP_CONTENT)); st.addView(pauseInfo, new LinearLayout.LayoutParams(dp(320), ViewGroup.LayoutParams.WRAP_CONTENT)); add(st, 12);
                 View e = bigBtn("BEENDEN", "check", 0xFF252937, WHITE, new Runnable() { public void run() { endRun(); } });
-                ((LinearLayout) e).setMinimumWidth(dp(164)); add(e, 4);
-                add(pb("apps", WHITE, new Runnable() { public void run() { openUi("/apps"); } }), 4);
+                ((LinearLayout) e).setMinimumWidth(dp(252)); add(e, 12);
                 // 1 s sichtbar gesperrt nach dem Wechsel in PAUSE
-                for (final View v : new View[]{ w, z, e }) { final float a0 = v.getAlpha(); v.setAlpha(Math.min(a0, 0.35f));
+                for (final View v : new View[]{ w, e }) { final float a0 = v.getAlpha(); v.setAlpha(Math.min(a0, 0.35f));
                     ui.postDelayed(new Runnable() { public void run() { v.setAlpha(a0); } }, 1000); }
                 break; }
             case "key": {
@@ -586,7 +581,8 @@ public class OverlayService extends Service {
         if ("mini".equals(mode) && miniLabel != null) setTxt(miniLabel, "LAEUFT".equals(st()) ? paceTxt() + " /km  ·  " + f1(s.optDouble("tIncl")) + " %" : "STEUERUNG");
         JSONObject prog = s.optJSONObject("prog");
         if (cTime != null) {
-            if (prog != null && "interval".equals(prog.optString("type")) && !"pause".equals(mode)) {
+            if ("col".equals(mode)) { setTxt(cTime[1], mmss(s.optInt("elapsed"))); setTxt(cTime[2], ""); }   // Minimalpille: immer die Laufzeit
+            else if (prog != null && "interval".equals(prog.optString("type")) && !"pause".equals(mode)) {
                 String k = prog.optString("kind");
                 String name = "h".equals(k) ? "BELASTUNG" : "r".equals(k) ? "ERHOLUNG" : (prog.optInt("idx") <= 1 ? "EINLAUFEN" : "AUSLAUFEN");
                 String cnt = "";
@@ -613,14 +609,14 @@ public class OverlayService extends Service {
                 if (app.length() > 0) { setTxt(cTime[3], app.toUpperCase(java.util.Locale.ROOT) + " STEUERT"); fitLab(cTime[3]); cTime[3].setTextColor(SPD); }
                 else { setTxt(cTime[3], "ZEIT"); cTime[3].setTextColor(0xFFA4A9BB); }
             }
-            if ("pause".equals(mode)) { setTxt(cTime[3], "PAUSE · GESAMT"); setTxt(cTime[2], ""); double ti = s.optDouble("tIncl");
-                boolean after = s.optString("note").startsWith("Nach Unterbrechung");
-                if (pauseInfo != null) setTxt(pauseInfo, ti > 0.05 ? "Steigung bleibt " + f1(ti) + " %" : "Steigung 0.0 %");
-                boolean coast = s.optDouble("speed") > 0.3;   // Band laeuft nach STOP noch aus
-                if (statusField != null && cdTask == null) { TextView t0 = (TextView) statusField.getChildAt(0); String want = coast ? "■  BAND LÄUFT AUS" : "■  BAND STEHT"; if (!want.contentEquals(t0.getText())) t0.setText(want); }
-                if (weiterBtn != null && cdTask == null) { weiterBtn.setEnabled(!coast); weiterBtn.setAlpha(coast ? 0.4f : 1f); }
-                if (weiterSub != null) { setTxt(weiterSub, after ? "mit " + f1(s.optDouble("tSpeed")) + " km/h · Gehtempo" : ""); weiterSub.setVisibility(after ? View.VISIBLE : View.GONE); } }
         }
+        if ("pause".equals(mode)) {
+            boolean after = s.optString("note").startsWith("Nach Unterbrechung");
+            if (pauseInfo != null) setTxt(pauseInfo, "PAUSE · GESAMT " + mmss(s.optInt("elapsed")));
+            boolean coast = s.optDouble("speed") > 0.3;   // Band laeuft nach STOP noch aus
+            if (statusField != null && cdTask == null) { TextView t0 = (TextView) statusField.getChildAt(0); String want = coast ? "■  BAND LÄUFT AUS" : "■  BAND STEHT"; if (!want.contentEquals(t0.getText())) t0.setText(want); }
+            if (weiterBtn != null && cdTask == null) { weiterBtn.setEnabled(!coast); weiterBtn.setAlpha(coast ? 0.4f : 1f); }
+            if (weiterSub != null) { setTxt(weiterSub, after ? "mit " + f1(s.optDouble("tSpeed")) + " km/h · Gehtempo" : ""); weiterSub.setVisibility(after ? View.VISIBLE : View.GONE); } }
         boolean run = "LAEUFT".equals(st()) && "exp".equals(mode);
         if (cIncl != null) { setTxt(cIncl[1], f1(s.optDouble("tIncl"))); setTxt(cIncl[2], "%"); istLine(cIncl, run, s.optDouble("incline"), s.optDouble("tIncl")); }
         if (cSpd != null) { setTxt(cSpd[1], f1(s.optDouble("tSpeed"))); setTxt(cSpd[2], "km/h"); istLine(cSpd, run, s.optDouble("speed"), s.optDouble("tSpeed")); }
@@ -739,6 +735,7 @@ public class OverlayService extends Service {
     void noteCheck() {
         changeCheck(); if (bannerOn) return;
         String n = s == null ? "" : s.optString("note", "");
+        if ("pause".equals(mode) && n.startsWith("Nach Unterbrechung")) n = "";   // steht schon im WEITER-Knopf («mit 3.0 km/h · Gehtempo»)
         if (n.length() > 0 && !n.equals(lastNote)) {
             noteView.setText(n); noteView.setVisibility(View.VISIBLE);
             ui.removeCallbacks(hideNote); ui.postDelayed(hideNote, 8000);

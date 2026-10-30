@@ -514,6 +514,14 @@ public class CoreSzenarien {
             t("Laufsensor auf dem Schuh (0x01)", FtmsData.rscLocation()[0] == 1, "");
         }
         System.out.println();
+        { // BEENDEN aus der Pause: Steigung faehrt von selbst auf 0 (kein eigener Knopf mehr)
+            CoreSzenarien s = new CoreSzenarien(); s.startRun(); s.run(20);
+            s.cmd("{\"c\":\"incline\",\"v\":6}"); s.run(25);
+            double vorher = s.b.incline;
+            s.cmd("{\"c\":\"stop\"}"); s.until(() -> s.b.speed < 0.1, 60);
+            String e = s.cmd("{\"c\":\"end\"}"); s.run(40);
+            t("BEENDEN setzt die Steigung auf 0", e.contains("true") && vorher > 4 && s.c.tIncl == 0f && s.b.incline < 0.2, String.format("vorher %.1f, nachher Soll %.1f, Band %.1f", vorher, s.c.tIncl, s.b.incline));
+        }
         { // Pulszone: eine Formel fuer Dienst, Pille und Oberflaeche (70/77/85/92 % HFmax, wie TX.zones)
             int[] hr = { 91, 92, 127, 128, 142, 143, 156, 157, 169, 170 }, want = { -1, 1, 1, 2, 2, 3, 3, 4, 4, 5 };
             boolean same = true; StringBuilder got = new StringBuilder();

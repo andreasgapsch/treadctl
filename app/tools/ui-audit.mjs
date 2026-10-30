@@ -634,14 +634,14 @@ if (!ONLY.length) {
   await flow('Pause: Weiter zählt 3 · 2 · 1 mit Ton, resume erst danach', async p => {
     await p.goto(BASE + '?demo=1&szenario=pause#/run'); await p.waitForTimeout(1000);
     await p.evaluate(() => { window.__beeps = 0; const o = window.TX.beep; window.TX.beep = function (hz) { window.__beeps++; return o(hz); }; });
-    const z = await p.$eval('[data-x="inclZero"]', e => ({ v: e.offsetParent !== null, d: e.disabled, t: e.querySelector('.r1').textContent.trim() }));
+    const z = await p.evaluate(() => Array.from(document.querySelectorAll('.pmodal .pzrow button')).map(b => b.textContent.replace(/\s+/g, ' ').trim()));
     await p.click('[data-x="resume"]'); await p.waitForTimeout(400);
     const ov = await p.isVisible('.cdown'), n1 = await p.textContent('.cdown [data-k="cn"]'), l1 = await log(p), s1 = await st(p);
     await p.waitForTimeout(1000); const n2 = await p.textContent('.cdown [data-k="cn"]');
     await p.waitForTimeout(2300);
     const l2 = await log(p), s2 = await st(p), ov2 = await p.isVisible('.cdown'), b = await p.evaluate(() => window.__beeps);
-    return { ok: z.v && !z.d && z.t === 'STEIGUNG AUF 0' && ov && n1 === '3' && n2 === '2' && l1.join() === 'arm' && s1.st === 'PAUSE' && l2.join() === 'arm,resume' && s2.st === 'LAEUFT' && !ov2 && b === 3,
-      d: `«${z.t}» aktiv ${!z.d}; Anzeige ${n1}, ${n2}; vorher [${l1}] ${s1.st}; danach [${l2}] ${s2.st}, Töne ${b}` };
+    return { ok: z.join('|') === 'WEITER|BEENDEN' && ov && n1 === '3' && n2 === '2' && l1.join() === 'arm' && s1.st === 'PAUSE' && l2.join() === 'arm,resume' && s2.st === 'LAEUFT' && !ov2 && b === 3,
+      d: `Knöpfe [${z.join(', ')}]; Anzeige ${n1}, ${n2}; vorher [${l1}] ${s1.st}; danach [${l2}] ${s2.st}, Töne ${b}` };
   });
   await flow('WEITER-Countdown: ein roter Knopf «ABBRECHEN · Band bleibt stehen» an der STOP-Stelle, Ziel gross darüber', async p => {
     await p.goto(BASE + '?demo=1&szenario=pause#/run'); await p.waitForTimeout(1000);
@@ -656,15 +656,18 @@ if (!ONLY.length) {
     const ok = c.n === 1 && c.txt === 'ABBRECHEN · Band bleibt stehen' && c.red && Math.abs(c.x - big.x) < 2 && Math.abs(c.y - big.y) < 2 && c.h >= 60 && c.tgt === '12.5 km/h · 4.0 %' && c.above && c.tfs >= 48 && gone && !l.includes('resume') && s.st === 'PAUSE';
     return { ok, d: `${c.n} Knopf «${c.txt}», Mitte ${Math.round(c.x)}/${Math.round(c.y)} (STOP ${Math.round(big.x)}/${Math.round(big.y)}), Ziel «${c.tgt}» ${c.tfs} px darüber ${c.above}; danach ${s.st}, Befehle [${l}]` };
   });
-  await flow('Pause: «STEIGUNG AUF 0» mit Zeile «Steigung bleibt 4.0 %» im Knopf, danach kurz «4.0 → 0.0», dann gesperrt (Dialog und Leiste gleich)', async p => {
-    await p.goto(BASE + '?demo=1&szenario=pause#/run'); await p.waitForTimeout(1000);
-    const a = await p.evaluate(() => { const b = document.querySelector('.pmodal [data-x="inclZero"]'), c = b.querySelector('[data-k="izc"]'); return { t: b.querySelector('.r1').textContent.trim(), svg: !!b.querySelector('svg'), c: c.textContent, inside: b.contains(c) }; });
-    await p.click('.pmodal [data-x="inclZero"]'); await p.waitForTimeout(500);
-    const fx = await p.textContent('.pmodal [data-k="izc"]'), fxBar = await p.textContent('.ctl [data-k="izc"]');
-    await p.waitForTimeout(2600);
-    const z = await p.evaluate(() => { const b = document.querySelector('.pmodal [data-x="inclZero"]'); return { v: b.offsetParent !== null, d: b.disabled, c: b.querySelector('[data-k="izc"]').textContent }; });
-    return { ok: a.t === 'STEIGUNG AUF 0' && a.svg && a.c === 'Steigung bleibt 4.0 %' && a.inside && fx === '4.0 → 0.0' && fxBar === fx && z.v && z.d && z.c === 'Steigung ist 0.0 %',
-      d: `«${a.t}» Symbol ${a.svg}, Zeile «${a.c}» im Knopf ${a.inside}; nach Druck «${fx}» (Leiste «${fxBar}»), danach «${z.c}», gesperrt ${z.d}` };
+  await flow('Pause schlank: nur WEITER links und BEENDEN rechts (Dialog und Leiste gleich), kein Erklärtext; BEENDEN setzt die Steigung auf 0', async p => {
+    await p.goto(BASE + '?demo=1&szenario=pause#/run'); await p.waitForTimeout(1300);
+    const a = await p.evaluate(() => {
+      const row = sel => { const r = document.querySelector(sel); const bs = Array.from(r.querySelectorAll('button')), m = r.querySelector('.pz-m').getBoundingClientRect();
+        return { t: bs.map(b => b.textContent.replace(/\s+/g, ' ').trim()), lr: bs.length === 2 && bs[0].getBoundingClientRect().right <= m.left && bs[1].getBoundingClientRect().left >= m.right }; };
+      const pn = document.querySelector('.pmodal [data-k="pn"]');
+      return { dlg: row('.pmodal .pzrow'), bar: row('.ctl .pzrow'), note: pn.textContent, noteShown: getComputedStyle(pn).display !== 'none', incl: window.TX.api.state.tIncl };
+    });
+    await p.click('.pmodal [data-x="end"]'); await p.waitForTimeout(1500);
+    const s = await st(p);
+    const ok = a.dlg.t.join('|') === 'WEITER|BEENDEN' && a.bar.t.join('|') === 'WEITER|BEENDEN' && a.dlg.lr && a.bar.lr && !a.noteShown && a.incl > 0 && s.st === 'BEREIT' && s.tIncl === 0;
+    return { ok, d: `Dialog [${a.dlg.t}] links/rechts ${a.dlg.lr}, Leiste [${a.bar.t}] ${a.bar.lr}; Erklärtext sichtbar ${a.noteShown}; Steigung ${a.incl} → nach BEENDEN ${s.tIncl} (${s.st})` };
   });
   await flow('Wechseltext TX.changeText: Richtung mit Pfeil, Farbe nach Richtung, ohne Lautsprecher und «Ton bei 3, 2, 1»', async p => {
     await p.goto(BASE + '?demo=1&szenario=wechsel#/interval/p-schwelle'); await p.waitForTimeout(1200);
@@ -809,22 +812,22 @@ if (!ONLY.length) {
       const rs = Array.from(row.querySelectorAll('button')).map(b => b.getBoundingClientRect());
       return { lock: row.classList.contains('lock'), en: Array.from(row.querySelectorAll('button')).filter(b => !b.disabled).length, mx: m.x + m.width / 2, my: m.y + m.height / 2, mw: m.width,
         bmx: bm.x + bm.width / 2, bmy: bm.y + bm.height / 2, txt: row.querySelector('.pz-m').textContent.trim(), labs: lab(row).join('|'), barLabs: lab(document.querySelector('.ctl .pzrow')).join('|'),
-        left: rs[0].right <= m.x, right: rs[1].left >= m.x + m.width && rs[2].left > rs[1].left, cd: !!document.querySelector('.cdown') };
+        left: rs[0].right <= m.x, right: rs.length === 2 && rs[1].left >= m.x + m.width, cd: !!document.querySelector('.cdown') };
     });
     // Leistenknopf hinter dem Modal: Treffer landet im Dialog, direkter Klick auf den Knopf sendet nichts
     const behind = await p.evaluate(() => {
       const b = document.querySelector('.ctl [data-pz="resume"]'), r = b.getBoundingClientRect(), hit = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
       const n0 = window.__txCmdLog.length; b.click(); b.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-      ['inclZero', 'end'].forEach(k => document.querySelector('.ctl [data-pz="' + k + '"]').click());
+      ['end'].forEach(k => document.querySelector('.ctl [data-pz="' + k + '"]').click());
       return { inModal: !!(hit && hit.closest('.pmodal')), dis: b.disabled, sent: window.__txCmdLog.length - n0 };
     });
     await p.waitForTimeout(400);
     const l = await log(p), s = await st(p);
-    const ok = l.join() === 'stop' && s.st === 'PAUSE' && lk.at === 'pz-m' && !lk.btn && lk.lock && lk.dis && lk.op.every(o => o < 0.5) && lk.barDis && !after.lock && after.en === 3 &&
+    const ok = l.join() === 'stop' && s.st === 'PAUSE' && lk.at === 'pz-m' && !lk.btn && lk.lock && lk.dis && lk.op.every(o => o < 0.5) && lk.barDis && !after.lock && after.en === 2 &&
       Math.abs(after.mx - c.x) < 2 && Math.abs(after.my - c.y) < 2 && Math.abs(after.mw - 200) < 1 && Math.abs(after.bmx - c.x) < 2 && Math.abs(after.bmy - c.y) < 2 &&
-      after.txt === 'BAND STEHT' + 'PAUSE · GESAMT 24:15' && after.labs === 'WEITER|STEIGUNG AUF 0|BEENDEN' && after.barLabs === after.labs && after.left && after.right && !after.cd &&
+      after.txt === 'BAND STEHT' + 'PAUSE · GESAMT 24:15' && after.labs === 'WEITER|BEENDEN' && after.barLabs === after.labs && after.left && after.right && !after.cd &&
       behind.inModal && behind.dis && behind.sent === 0;
-    return { ok, d: `4 Tipps auf ${Math.round(c.x)}/${Math.round(c.y)}: Befehle [${l}], ${s.st}; dort «${after.txt}» (${lk.at}, Knopf ${lk.btn}); Sperre ${lk.lock} Deckkraft ${lk.op.join('/')}, nach 1 s frei ${after.en}/3; ` +
+    return { ok, d: `4 Tipps auf ${Math.round(c.x)}/${Math.round(c.y)}: Befehle [${l}], ${s.st}; dort «${after.txt}» (${lk.at}, Knopf ${lk.btn}); Sperre ${lk.lock} Deckkraft ${lk.op.join('/')}, nach 1 s frei ${after.en}/2; ` +
       `Dialog wie Leiste [${after.labs}]; Leistenknopf hinter Modal: Treffer im Dialog ${behind.inModal}, gesperrt ${behind.dis}, gesendet ${behind.sent}` };
   });
   await flow('Kurzer Lauf (unter 2 min oder unter 0.2 km): Nachfrage, Vorgabe Verwerfen, auch über /summary/last', async p => {
@@ -1165,7 +1168,7 @@ if (!ONLY.length) {
     const ok = flat(a) && flat(b) && a.some(x => x.lock) && !b.some(x => x.lock) && !on1 && !l.length && s.st === 'PAUSE';
     return { ok, d: `${a.map(x => x.where).join('+')}: Grund ${a[0].bg}, Rahmen ${a[0].bw}, ${a[0].w}x${a[0].h} px, «${a[0].t}» Sperrung ${a[0].ls.toFixed(2)} em, Quadrat ${a[0].ic}; gesperrt gleich ${flat(a)}; Tipp: Hinweis ${on1}, Befehle [${l}], ${s.st}` };
   });
-  await flow('Aktionsknöpfe in Versalien mit Sperrung wie die Pille (START, STOP, WEITER, STEIGUNG AUF 0, BEENDEN, ABBRECHEN), Reiter in Satzschreibung', async p => {
+  await flow('Aktionsknöpfe in Versalien mit Sperrung wie die Pille (START, STOP, WEITER, BEENDEN, ABBRECHEN), Reiter in Satzschreibung', async p => {
     const lab = e => (e.querySelector('.r1') || e).textContent.replace(/\s+/g, ' ').trim();
     const grab = sel => p.evaluate(([q, f]) => { const fn = new Function('e', 'return (' + f + ')(e)'); return Array.from(document.querySelectorAll(q)).filter(e => e.getClientRects().length).map(e => {
       const t = e.querySelector('.r1') || e, cs = getComputedStyle(t); return { t: fn(e), ls: parseFloat(cs.letterSpacing) / parseFloat(cs.fontSize) }; }); }, [sel, lab.toString()]);
@@ -1178,7 +1181,7 @@ if (!ONLY.length) {
     await p.click('.pmodal [data-x="resume"]'); await p.waitForTimeout(200);
     const e = await grab('.cdown .cdx');
     const all = [...a, ...b, ...c, ...e];
-    const ok = all.map(x => x.t).join('|') === 'START|STOP|WEITER|STEIGUNG AUF 0|BEENDEN|ABBRECHEN' && all.every(x => x.t === x.t.toUpperCase() && x.ls >= 0.05 && x.ls <= 0.1) &&
+    const ok = all.map(x => x.t).join('|') === 'START|STOP|WEITER|BEENDEN|ABBRECHEN' && all.every(x => x.t === x.t.toUpperCase() && x.ls >= 0.05 && x.ls <= 0.1) &&
       c.map(x => x.t).join() === d.map(x => x.t).join() && tabs.length === 0;
     await p.goto(BASE + '?demo=1&frozen=1#/plans'); await p.waitForTimeout(800);
     const tb = await p.evaluate(() => Array.from(document.querySelectorAll('.tabs .tab')).map(e => e.textContent.trim()));
@@ -1279,9 +1282,9 @@ if (!ONLY.length) {
     const c = await p.evaluate(() => ({ lab: document.querySelector('.cdown .cdt .lab').textContent, tgt: document.querySelector('.cdown .cdt .num').textContent.replace(/\s+/g, ' ').trim() }));
     await p.waitForTimeout(3300);
     const s = await st(p), l = await log(p);
-    const ok = n.pw && n.rsc === '' && n.h === 76 && a.vis && a.t === 'Weiter mit 3.0 km/h (Gehtempo)' && /^Nach Unterbrechung/.test(a.n) && a.rsc === 'mit 3.0 km/h · Gehtempo' && a.bar === a.rsc && a.r1 === 'WEITER' &&
-      /sanft auf 3\.0 km\/h/.test(a.note) && a.st === 3 && a.fit && c.lab === 'Ziel · Gehtempo nach Unterbrechung' && c.tgt === '3.0 km/h · 4.0 %' && s.st === 'LAEUFT' && s.tSpeed === 1 && s.hold > 0 && s.holdTo === 3 && /^Einlaufen/.test(s.note) && l.filter(x => x === 'resume').length === 1;
-    return { ok, d: `normal: Hinweis aus ${n.pw}, WEITER einzeilig; nachfehler: «${a.t}» / «${a.n.slice(0, 40)}…», WEITER «${a.r1}» + «${a.rsc}» (Leiste gleich ${a.bar === a.rsc}); Countdown «${c.lab}» «${c.tgt}»; danach ${s.st} Soll ${s.tSpeed}` };
+    const ok = n.pw && n.rsc === '' && n.h === 76 && a.vis && a.t === 'Weiter mit 3.0 km/h (Gehtempo)' && a.n === '' && a.rsc === 'mit 3.0 km/h · Gehtempo' && a.bar === a.rsc && a.r1 === 'WEITER' &&
+      a.note === '' && a.st === 3 && a.fit && c.lab === 'Ziel · Gehtempo nach Unterbrechung' && c.tgt === '3.0 km/h · 4.0 %' && s.st === 'LAEUFT' && s.tSpeed === 1 && s.hold > 0 && s.holdTo === 3 && /^Einlaufen/.test(s.note) && l.filter(x => x === 'resume').length === 1;
+    return { ok, d: `normal: Hinweis aus ${n.pw}, WEITER einzeilig; nachfehler: «${a.t}» ohne weiteren Text ${a.n === '' && a.note === ''}, WEITER «${a.r1}» + «${a.rsc}» (Leiste gleich ${a.bar === a.rsc}); Countdown «${c.lab}» «${c.tgt}»; danach ${s.st} Soll ${s.tSpeed}` };
   });
   await flow('Abschluss: Kilometerliste mit Ausblendverlauf, solange nicht alle Zeilen sichtbar sind', async p => {
     await p.goto(BASE + '?demo=1&frozen=1#/summary'); await p.waitForTimeout(1000);
@@ -1450,7 +1453,7 @@ if (!ONLY.length) {
       b.n1 === 1 && b.n2 === 0 && b.all === 6;
     return { ok, d: `${a.n} Kachel «${a.chip}», Filter «${a.fil}», ${a.rows.length} Zeilen [${a.rows[0]}, ${a.rows[1]} … ${a.rows[17]}, ${a.rows[18]}]; Programm ${a.type} ${a.segs} Abschnitte, ${a.tot} s, Stufen ${a.st}, Steigung 1 % ${a.inc}, Grenzen ${a.lim}; Beschreibung ${a.desc === TXT ? 'wörtlich' : '«' + a.desc + '»'}; nachgetragen ${b.n1}, nach Löschen ${b.n2}` };
   });
-  await flow('Stufentest HFmax im Lauf: «STUFE 13/17», Max-Puls bisher gross (= höchster Wert seit Start), Pulskurve ausgeblendet, «Stufe 14» als Nächstes; Pause nennt Max-Puls und Auswertung; BEENDEN → Zusammenfassung mit höchstem Puls und «Als HFmax übernehmen (N)» → Profil und {"c":"profile","hfmax","weight"}; Auslaufen lädt 5 min 6.0 km/h', async p => {
+  await flow('Stufentest HFmax im Lauf: «STUFE 13/17», Max-Puls bisher gross (= höchster Wert seit Start), Pulskurve ausgeblendet, «Stufe 14» als Nächstes; Pause nennt nur den Max-Puls; BEENDEN → Zusammenfassung mit höchstem Puls und «Als HFmax übernehmen (N)» → Profil und {"c":"profile","hfmax","weight"}; Auslaufen lädt 5 min 6.0 km/h', async p => {
     await p.goto(BASE + '?demo=1&frozen=1&szenario=stufentest#/interval/p-hfmax'); await p.waitForTimeout(1500);
     const a = await p.evaluate(() => { const TX = window.TX, r = document.querySelector('.v-int'); let mx = 0; TX.api.series().forEach(x => { if (x[3] > mx) mx = x[3]; }); if (TX.api.state.hr > mx) mx = TX.api.state.hr;
       return { ph: r.querySelector('[data-k="ph"]').textContent, hfm: +r.querySelector('[data-k="hfm"]').textContent, mx, vis: !r.querySelector('[data-k="hfx"]').hidden, fs: parseFloat(getComputedStyle(r.querySelector('.hfx .num')).fontSize),
@@ -1467,7 +1470,7 @@ if (!ONLY.length) {
     await p.click('[data-v="cool"]'); await p.waitForTimeout(700);
     const d = await p.evaluate(() => { const pr = window.__txCmdLog.filter(x => x.c === 'program').map(x => x.b.p)[0]; return { h: location.hash, segs: pr && pr.segs, st: window.TX.api.state.st, start: window.__txCmdLog.some(x => x.c === 'start' || x.c === 'arm') }; });
     const ok = a.ph === 'STUFE 13/17' && a.vis && a.hfm === a.mx && a.hfm > 0 && a.fs >= 50 && a.hrc === 'none' && /^Stufe 14 1:00 · 15\.5 km\/h$/.test(a.nt) && a.nb <= a.cb &&
-      /höchster Puls \d+ bpm/.test(pn) && /BEENDEN zeigt die Auswertung/.test(pn) && /«Auslaufen» oben rechts/.test(pn) &&
+      /^Höchster Puls \d+ bpm$/.test(pn) &&
       b.h.startsWith('#/summary/') && b.plan === 'p-hfmax' && b.max > 0 && b.big.startsWith(String(b.max)) && b.bt === `Als HFmax übernehmen (${b.max})` && b.h1 === 'Test abgeschlossen!' &&
       c.hf === b.max && c.cmd.length === 1 && c.cmd[0].hfmax === b.max && c.cmd[0].weight === 75 && c.bt && c.prof === `HFmax im Profil: ${b.max} bpm` &&
       d.h === '#/interval/aktiv' && d.segs && d.segs.length === 1 && d.segs[0].d === 300 && d.segs[0].s === 6 && d.segs[0].i === 1 && d.st === 'BEREIT' && !d.start;

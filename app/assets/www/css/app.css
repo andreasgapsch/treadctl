@@ -189,6 +189,7 @@ svg.i.f{fill:currentColor;stroke:none}
 .dlg .acts .btn{min-height:56px;padding:0 24px;font-size:17px}
 .dlg .ico{font-size:40px;color:var(--hr);display:flex;justify-content:center}
 .dlg .note{font-size:15px;margin-top:16px;color:var(--mut)}
+.dlg .note:empty{display:none}
 .dlg .acts{align-items:flex-end}
 /* Pausenreihe: in der Steuerleiste und unten im Pausen-Dialog an derselben Stelle.
    Mitte = Statusfeld «Band steht» in STOP-Breite (kein Knopf), links WEITER, rechts Steigung auf 0 und Beenden.
@@ -218,12 +219,8 @@ svg.i.f{fill:currentColor;stroke:none}
 .pzb.go small{display:block;font-size:13px;font-weight:800;letter-spacing:0;text-transform:none;margin-top:4px;font-variant-numeric:tabular-nums}
 .pzb.go small:empty{display:none}
 .pzb.ghost{background:var(--s2);border:1px solid var(--line2);color:var(--text)}
-.pzb.iz .bl{display:block;text-align:center;line-height:1.1}
-.pzb.iz .r1{display:flex;align-items:center;justify-content:center}
-.pzb.iz small{display:block;font-size:13px;font-weight:700;letter-spacing:0;color:#d3d6e0;margin-top:4px;font-variant-numeric:tabular-nums}
-.pzb.iz small.fx{color:var(--inc)}
+.pzb.end{min-width:220px}
 .pzb:disabled{background:var(--s2);color:var(--mut);box-shadow:none;border:1px solid var(--line)}
-.pzb.iz:disabled small{color:var(--mut)}
 /* 1 s nach dem Wechsel in PAUSE: alle Pausenknoepfe sichtbar abgeblendet */
 .pzrow.lock .pzb{opacity:.35}
 .pzb:active{transform:scale(.94);filter:brightness(1.35);transition:transform 50ms}

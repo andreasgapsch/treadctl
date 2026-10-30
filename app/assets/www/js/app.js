@@ -90,12 +90,12 @@
     set('pi', TX.f2(st.dist) + ' km · ' + Math.round(st.elev || 0) + ' Hm · ' + Math.round(st.kcal || 0) + ' kcal');
     // nach Fehler oder gezogenem Schluessel: Weiter faehrt nur auf Gehtempo (state.tSpeed, vom Dienst gesetzt)
     var ab = TX.afterBreak(st); pdl.querySelector('[data-k="pw"]').hidden = !ab;
-    if (ab) { set('pwt', TX.walkText(st)); set('pwn', st.note); }
+    if (ab) { set('pwt', TX.walkText(st)); set('pwn', ''); }
     // Stufentest HFmax: Hinweis auf die Auswertung statt nur auf Weiter
     var ta = st.prog && st.prog.type === 'interval' ? TX.active(st.prog.name) : null, tst = !!(ta && ta.planId && TX.isTest(TX.plan(ta.planId)));
     var mxh = 0; if (tst) { TX.api.series().forEach(function (p) { if (p[3] > mxh) mxh = p[3]; }); if (st.hrOk !== false && st.hr > mxh) mxh = st.hr; }
-    set('pn', tst ? (mxh ? 'Stufentest: höchster Puls ' + Math.round(mxh) + ' bpm. ' : 'Stufentest: kein Pulssignal, ohne Pulsmesser nicht auswertbar. ') + '«Auslaufen» oben rechts springt ins Auslaufen, BEENDEN zeigt die Auswertung mit Übernahme als HFmax. Weiter fährt mit ' + TX.f1(st.tSpeed) + ' km/h in derselben Stufe fort.'
-      : 'Weiter zählt 3 · 2 · 1 und fährt dann sanft auf ' + TX.f1(st.tSpeed) + ' km/h. Nach 5 min ohne Eingabe wird der Lauf gespeichert.');
+    // nur das Wichtigste: beim Stufentest der hoechste Puls, sonst kein Text (WEITER und BEENDEN sprechen fuer sich)
+    set('pn', tst ? (mxh ? 'Höchster Puls ' + Math.round(mxh) + ' bpm' : 'Kein Pulssignal: nicht auswertbar') : '');
     TX.pauseRowUpd(pdl.querySelector('.pzrow'), st, false);
   }
   // Wechsel in PAUSE: alle Pausenknoepfe 1 s sperren (Finger liegt evtl. noch auf STOP)
@@ -115,11 +115,6 @@
     if (TX.pzLocked() || !st || st.st !== 'PAUSE' || api.offline) return;
     if (x === 'end') endRun();
     else if (x === 'resume') TX.resumeCountdown();
-    else if (x === 'inclZero' && st.tIncl > 0) {
-      // kurz zeigen, was passiert: «4.0 → 0.0»
-      var from = st.tIncl;
-      TX.cmd('inclZero').then(function (r) { if (!r.ok) return; TX.pz.iz = { from: from, until: Date.now() + 2500 }; refreshPause(); setTimeout(refreshPause, 2600); });
-    }
   };
 
   /* ---------- START und WEITER nur mit Countdown 3 · 2 · 1 ----------

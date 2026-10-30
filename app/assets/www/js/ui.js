@@ -148,38 +148,31 @@
 
   /* ---------- Pausenreihe (Steuerleiste und Pausen-Dialog gleich aufgebaut) ----------
      Mitte genau an der STOP-Stelle: kein Knopf, nur das flache Statusfeld «BAND STEHT» (wie in der Pille:
-     ohne Fuellung, graues Stopp-Quadrat, 56 hoch, reagiert auf nichts). Links WEITER,
-     rechts STEIGUNG AUF 0 und BEENDEN. Nach dem Wechsel in PAUSE 1 s gesperrt (lockUntil).
+     ohne Fuellung, graues Stopp-Quadrat, 56 hoch, reagiert auf nichts). Links WEITER, rechts BEENDEN
+     (die Steigung faehrt beim Beenden selbst auf 0). Nach dem Wechsel in PAUSE 1 s gesperrt (lockUntil).
      dlg: Pausen-Dialog offen, die Leiste liegt dann abgeblendet dahinter und nimmt nichts an. */
-  TX.pz = { lockUntil: 0, dlg: false, ending: false, iz: null };
+  TX.pz = { lockUntil: 0, dlg: false, ending: false };
   TX.pzLocked = function () { return Date.now() < TX.pz.lockUntil; };
   // Pause nach Fehler oder gezogenem Schluessel waehrend eines Laufs: Dienst setzt Gehtempo (3.0) als Ziel
   TX.afterBreak = function (st) { return !!(st && st.st === 'PAUSE' && typeof st.note === 'string' && st.note.indexOf('Nach Unterbrechung') === 0); };
   TX.walkText = function (st) { return 'Weiter mit ' + TX.f1(st.tSpeed) + ' km/h (Gehtempo)'; };
-  TX.izText = function (st) {
-    var z = TX.pz.iz, fx = !!(z && Date.now() < z.until);
-    return { fx: fx, t: fx ? TX.f1(z.from) + ' → 0.0' : st.tIncl > 0 ? 'Steigung bleibt ' + TX.f1(st.tIncl) + ' %' : 'Steigung ist 0.0 %' };
-  };
   // a: Name des data-Attributs der Knoepfe (x im Dialog, pz in der Leiste)
   TX.pauseRowHtml = function (a) {
     return '<div class="pzrow"><div class="pz-l"><button class="pzb go" data-' + a + '="resume"><span class="bl"><span class="r1">' + I('play', 1) + ' WEITER</span><small data-k="rsc"></small></span></button></div>' +
       '<div class="pz-m" role="status"><b>' + I('stop', 1) + '<span>BAND STEHT</span></b><small data-k="pzt"></small></div>' +
-      '<div class="pz-r"><button class="pzb ghost iz" data-' + a + '="inclZero"><span class="bl"><span class="r1">' + I('arrowDown') + ' STEIGUNG AUF 0</span><small data-k="izc"></small></span></button>' +
-      '<button class="pzb ghost" data-' + a + '="end">' + I('check') + ' BEENDEN</button></div></div>';
+      '<div class="pz-r"><button class="pzb ghost end" data-' + a + '="end">' + I('check') + ' BEENDEN</button></div></div>';
   };
   TX.pauseRowUpd = function (row, st, behind) {
     if (!row || !st) return;
-    var lk = TX.pzLocked(), iz = TX.izText(st), bs = row.querySelectorAll('button');
+    var lk = TX.pzLocked(), bs = row.querySelectorAll('button');
     var set = function (k, v) { var e = row.querySelector('[data-k="' + k + '"]'); if (e && e.textContent !== v) e.textContent = v; return e; };
     row.classList.toggle('lock', lk);
     set('pzt', 'PAUSE · GESAMT ' + TX.time(st.elapsed));
     // nach STOP aus hohem Tempo laeuft das Band noch aus: ehrlich anzeigen, WEITER erst im Stand (der Dienst prueft das auch)
     var coast = st.speed > 0.3, ms = row.querySelector('.pz-m span'); if (ms && ms.textContent !== (coast ? 'BAND LÄUFT AUS' : 'BAND STEHT')) ms.textContent = coast ? 'BAND LÄUFT AUS' : 'BAND STEHT';
-    set('izc', iz.t).className = iz.fx ? 'fx' : '';
     set('rsc', TX.afterBreak(st) ? 'mit ' + TX.f1(st.tSpeed) + ' km/h · Gehtempo' : '');
     bs[0].disabled = lk || !!behind || TX.pz.ending || coast;
-    bs[1].disabled = lk || !!behind || !(st.tIncl > 0);
-    bs[2].disabled = lk || !!behind || TX.pz.ending;
+    bs[1].disabled = lk || !!behind || TX.pz.ending;
   };
 
   /* ---------- Steuerleiste ---------- */
