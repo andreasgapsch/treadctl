@@ -26,6 +26,31 @@ public class MediaWatch {
 
     MediaWatch(Context c) { ctx = c; }
 
+    // Play pruefen: Manche Apps (YouTube Music kurz nach dem Einschalten) nehmen das erste play() an, ohne zu spielen.
+    // Nach 2 s nachsehen; spielt die Sitzung dann nicht und kam kein neuer Befehl, einmal nachfassen. Alles ins Log (TreadMedia).
+    final android.os.Handler later = new android.os.Handler(android.os.Looper.getMainLooper());
+    volatile int cmdSeq = 0;
+    static String stName(MediaController c) { PlaybackState ps = c == null ? null : c.getPlaybackState(); return ps == null ? "null" : String.valueOf(ps.getState()); }
+    void playChecked(final MediaController c, final String why) {
+        final int seq = ++cmdSeq; final String pkg = c.getPackageName();
+        android.util.Log.i("TreadMedia", why + " play " + pkg + " Zustand vorher " + stName(c));
+        c.getTransportControls().play();
+        check(seq, pkg, why, 2000, true);
+    }
+    /** Nach ms nachsehen: spielt die Sitzung, fertig; puffert/verbindet sie noch, spaeter nochmals; sonst einmal nachfassen. */
+    void check(final int seq, final String pkg, final String why, final long ms, final boolean again) {
+        later.postDelayed(new Runnable() { public void run() {
+            if (seq != cmdSeq) return;
+            MediaController n = session(pkg); PlaybackState ps = n == null ? null : n.getPlaybackState();
+            int st = ps == null ? -1 : ps.getState();
+            android.util.Log.i("TreadMedia", why + " nach " + ms + " ms " + pkg + " Zustand " + st);
+            if (n == null || st == PlaybackState.STATE_PLAYING) return;
+            if (st == PlaybackState.STATE_BUFFERING || st == PlaybackState.STATE_CONNECTING) { if (again) check(seq, pkg, why, 3000, false); return; }
+            android.util.Log.i("TreadMedia", why + " spielt nicht, zweites play");
+            n.getTransportControls().play();
+        } }, ms);
+    }
+
     List<MediaController> sessions() {
         MediaSessionManager m = (MediaSessionManager) ctx.getSystemService(Context.MEDIA_SESSION_SERVICE);
         return m.getActiveSessions(null);
@@ -147,15 +172,17 @@ public class MediaWatch {
             try { for (MediaController o : sessions()) if (!pkg.equals(o.getPackageName()) && playing(o)) o.getTransportControls().pause(); } catch (Throwable e) {}
             MediaController t = session(pkg);
             if (t == null) return Core.err("start");
-            t.getTransportControls().play(); return Core.ok();
+            playChecked(t, "source"); return Core.ok();
         }
         MediaController c = pick();
         if (c == null) return Core.err("keine Wiedergabe");
         MediaController.TransportControls t = c.getTransportControls();
         PlaybackState ps = c.getPlaybackState();
         boolean playing = playing(c);   // auch beim Puffern: Tipp heisst Pause
-        if ("toggle".equals(a)) { if (playing) t.pause(); else t.play(); }
-        else if ("play".equals(a)) t.play();
+        cmdSeq++;   // jeder Befehl verwirft ein ausstehendes Nachfassen
+        android.util.Log.i("TreadMedia", "cmd " + a + " " + c.getPackageName() + " Zustand " + stName(c));
+        if ("toggle".equals(a)) { if (playing) t.pause(); else playChecked(c, "toggle"); }
+        else if ("play".equals(a)) playChecked(c, "play");
         else if ("pause".equals(a)) t.pause();
         else if ("next".equals(a)) t.skipToNext();
         else if ("prev".equals(a)) t.skipToPrevious();

@@ -238,7 +238,8 @@
   R.list = function () {
     if (api.demo) {
       var own = demoOwn(), out = Object.keys(own).map(function (k) { return meta(own[k], false); });
-      return Promise.all(SAMPLES.map(function (id) { return R.get(id).then(function (o) { return meta(o, true); }, function () { return null; }); }))
+      var hid = TX.load(DKEY + '.hidden', []);
+      return Promise.all(SAMPLES.filter(function (id) { return hid.indexOf(id) < 0; }).map(function (id) { return R.get(id).then(function (o) { return meta(o, true); }, function () { return null; }); }))
         .then(function (l) { out = out.concat(l.filter(Boolean)); R.metaCache = out; return out; });
     }
     return getJson('/api/routes').then(function (l) { R.metaCache = Array.isArray(l) ? l : []; return R.metaCache; });
@@ -262,7 +263,11 @@
   };
   R.del = function (id) {
     delete R.cache[id]; R.metaCache = null;
-    if (api.demo) { var own = demoOwn(); if (!own[id]) return Promise.resolve({ ok: false, error: 'nur eigene Strecken lassen sich löschen' }); delete own[id]; TX.save(DKEY, own); return Promise.resolve({ ok: true }); }
+    if (api.demo) {
+      var own = demoOwn();
+      if (!own[id]) { if (SAMPLES.indexOf(id) < 0) return Promise.resolve({ ok: false, error: 'Strecke unbekannt' }); var hid = TX.load(DKEY + '.hidden', []); if (hid.indexOf(id) < 0) hid.push(id); TX.save(DKEY + '.hidden', hid); return Promise.resolve({ ok: true }); }
+      delete own[id]; TX.save(DKEY, own); return Promise.resolve({ ok: true });
+    }
     return api.req('DELETE', '/api/routes/' + encodeURIComponent(id));
   };
   // eindeutige Kennung neben den vorhandenen
@@ -343,6 +348,47 @@
 
   /* ---------- Kleine Karte als SVG (Linie auf dunklem Grund, ohne Kacheln) ----------
      line: [[lat, lon], ...]; o: {w, h, pad, frac (0..1 gelaufen), cls} */
+  /* Vorschau mit Luftbild wie die Karte im Lauf: Kacheln der Stufe 12 bis 16 (nur ueber /tiles des Dienstes) in ein Canvas,
+     abgedunkelt wie dort, Strecke darueber. Ergebnis als JPEG im localStorage (Schluessel mit Laenge und Hoehenmetern).
+     Ohne Kacheln (Ausland, nicht geladen): null, dann bleibt die Linie auf dunklem Grund. */
+  R.mapThumb = function (r, w, h) {
+    var src = R.tileSrc(r); if (!src || !r.pts || r.pts.length < 2 || !document.createElement('canvas').getContext) return Promise.resolve(null);
+    var key = 'tx.rthumb.' + r.id + '.' + Math.round(r.d || 0) + '.' + Math.round(r.up || 0) + '.' + w + 'x' + h;
+    try { var c0 = localStorage.getItem(key); if (c0) return Promise.resolve(c0); } catch (e) { /* ohne Zwischenspeicher */ }
+    var dpr = Math.min(2, window.devicePixelRatio || 1), W = Math.round(w * dpr), H = Math.round(h * dpr), pad = 18 * dpr;
+    var wx = function (lon, z) { return (lon + 180) / 360 * 256 * Math.pow(2, z); };
+    var wy = function (lat, z) { var s = Math.sin(lat * Math.PI / 180); return (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * 256 * Math.pow(2, z); };
+    var la0 = 90, la1 = -90, lo0 = 180, lo1 = -180;
+    r.pts.forEach(function (p) { la0 = Math.min(la0, p[0]); la1 = Math.max(la1, p[0]); lo0 = Math.min(lo0, p[1]); lo1 = Math.max(lo1, p[1]); });
+    var z = R.ZMAX; while (z > R.ZMIN && (wx(lo1, z) - wx(lo0, z) > W - 2 * pad || wy(la0, z) - wy(la1, z) > H - 2 * pad)) z--;
+    var sc = Math.min(1, (W - 2 * pad) / Math.max(1, wx(lo1, z) - wx(lo0, z)), (H - 2 * pad) / Math.max(1, wy(la0, z) - wy(la1, z)));
+    var cx = (wx(lo0, z) + wx(lo1, z)) / 2, cy = (wy(la0, z) + wy(la1, z)) / 2;
+    var X = function (px) { return W / 2 + (px - cx) * sc; }, Y = function (py) { return H / 2 + (py - cy) * sc; };
+    var t0x = Math.floor((cx - W / 2 / sc) / 256), t1x = Math.floor((cx + W / 2 / sc) / 256), t0y = Math.floor((cy - H / 2 / sc) / 256), t1y = Math.floor((cy + H / 2 / sc) / 256);
+    if ((t1x - t0x + 1) * (t1y - t0y + 1) > 64) return Promise.resolve(null);
+    var cv = document.createElement('canvas'); cv.width = W; cv.height = H; var g = cv.getContext('2d');
+    g.fillStyle = '#0a0b0f'; g.fillRect(0, 0, W, H);
+    var jobs = [], got = 0;
+    for (var tx = t0x; tx <= t1x; tx++) for (var ty = t0y; ty <= t1y; ty++) (function (tx, ty) {
+      jobs.push(new Promise(function (ok) {
+        var im = new Image(), t = setTimeout(function () { ok(); }, 8000);
+        im.onload = function () { clearTimeout(t); got++; g.drawImage(im, X(tx * 256), Y(ty * 256), 256 * sc + 0.5, 256 * sc + 0.5); ok(); };
+        im.onerror = function () { clearTimeout(t); ok(); };
+        im.src = '/tiles/' + src + '/' + z + '/' + tx + '/' + ty;
+      }));
+    })(tx, ty);
+    return Promise.all(jobs).then(function () {
+      if (!got) return null;
+      // abdunkeln wie die Karte im Lauf (brightness .62, saturate .85 ungefaehr)
+      g.fillStyle = 'rgba(0,0,0,.38)'; g.fillRect(0, 0, W, H);
+      var P = r.pts.map(function (p) { return [X(wx(p[1], z)), Y(wy(p[0], z))]; });
+      var line = function (c, wd) { g.beginPath(); P.forEach(function (q, i) { if (i) g.lineTo(q[0], q[1]); else g.moveTo(q[0], q[1]); }); g.strokeStyle = c; g.lineWidth = wd; g.lineJoin = 'round'; g.lineCap = 'round'; g.stroke(); };
+      line('rgba(0,0,0,.6)', 7 * dpr); line(TX.ROUTE_C || '#22c5c9', 3.5 * dpr);
+      var u = cv.toDataURL('image/jpeg', 0.8);
+      try { localStorage.setItem(key, u); } catch (e) { /* Speicher voll: ohne Zwischenspeicher */ }
+      return u;
+    }, function () { return null; });
+  };
   R.lineSvg = function (line, o) {
     o = o || {};
     var w = o.w || 300, h = o.h || 160, pad = o.pad == null ? 12 : o.pad;

@@ -191,10 +191,11 @@ public class Conn implements Runnable {
             if (fs != null) for (java.io.File f : fs) if (f.getName().endsWith(".json")) {
                 try { JSONObject m = metaCached(f.getPath(), f.lastModified() + ":" + f.length(), false, f, null); if (m != null) { out.put(m); seen.add(m.optString("id")); } } catch (Throwable e) {}
             }
+            java.util.Set<String> hidden = hiddenSamples();
             try {
                 for (String n : d.getAssets().list("www/strecken")) if (n.endsWith(".json")) {
                     JSONObject m = metaCached("asset:" + n, "1", true, null, n);   // Beispielstrecken aendern sich nur mit einer neuen Version
-                    if (m != null && !seen.contains(m.optString("id"))) out.put(m);
+                    if (m != null && !seen.contains(m.optString("id")) && !hidden.contains(m.optString("id"))) out.put(m);
                 }
             } catch (Exception e) {}
             json(200, out.toString()); return;
@@ -221,10 +222,22 @@ public class Conn implements Runnable {
         if (method.equals("DELETE") && id.length() > 0) {
             if (!postAllowed()) return;
             java.io.File f = new java.io.File(dir, id + ".json");
-            if (!f.exists()) { json(404, Core.err("nur eigene Strecken lassen sich löschen")); return; }
-            f.delete(); json(200, Core.ok()); return;
+            if (f.exists()) { f.delete(); json(200, Core.ok()); return; }
+            // Beispielstrecke: bleibt im Programm (README, Tests), wird hier nur ausgeblendet
+            boolean sample; try { d.getAssets().open("www/strecken/" + id + ".json").close(); sample = true; } catch (Exception e) { sample = false; }
+            if (!sample) { json(404, Core.err("Strecke unbekannt")); return; }
+            java.util.Set<String> h = hiddenSamples(); h.add(id);
+            java.io.FileOutputStream fo = new java.io.FileOutputStream(new java.io.File(d.getFilesDir(), "routes-hidden.txt")); fo.write(String.join("\n", h).getBytes("UTF-8")); fo.close();
+            json(200, Core.ok()); return;
         }
         json(405, Core.err("Methode"));
+    }
+
+    /** Ausgeblendete Beispielstrecken (eine Kennung je Zeile in files/routes-hidden.txt). */
+    java.util.Set<String> hiddenSamples() {
+        java.util.Set<String> s = new java.util.TreeSet<String>();
+        try { for (String l : new String(readFile(new java.io.File(d.getFilesDir(), "routes-hidden.txt")), "UTF-8").split("\n")) if (l.trim().matches("[a-z0-9-]{1,48}")) s.add(l.trim()); } catch (Exception e) {}
+        return s;
     }
 
     static JSONObject meta(JSONObject o, boolean sample) throws Exception {

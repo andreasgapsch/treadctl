@@ -203,6 +203,24 @@ public class CoreSzenarien {
             f.c.hwKey(KeyReader.K_GO); f.run(4);
             t("Fotosperre: START-Taste startet nicht", "BEREIT".equals(f.c.st), f.c.st);
         }
+        { // 12c Sicherheit: gruene Taste ueber einer App startet frei mit 1 km/h, ein liegengebliebenes Starttempo faehrt nicht hoch
+            CoreSzenarien s = new CoreSzenarien(); s.run(0.4);
+            s.cmd("{\"c\":\"speed\",\"v\":10}"); s.cmd("{\"c\":\"incline\",\"v\":3}");   // z. B. von einer frueher offenen Trainingsseite
+            s.c.uiView = ""; s.c.topPkg = "app.revanced.android.youtube";
+            s.c.hwKey(KeyReader.K_GO); s.run(3.4); s.run(25);
+            t("Grüne Taste über YouTube: frei mit 1 km/h, kein Hochfahren auf 10", "LAEUFT".equals(s.c.st) && s.c.tSpeed <= 1.05f && s.c.tIncl == 0f && s.c.holdTarget < 0,
+                String.format("%s Soll %.1f km/h %.1f %%", s.c.st, s.c.tSpeed, s.c.tIncl));
+            CoreSzenarien r = new CoreSzenarien(); r.run(0.4);
+            r.cmd("{\"c\":\"speed\",\"v\":10}");
+            r.c.uiView = "run"; r.c.uiViewAt = Core.clock(); r.c.topPkg = "com.gapsch.treadctl";
+            r.c.hwKey(KeyReader.K_GO); r.run(3.4); r.run(25);
+            t("Grüne Taste auf der Trainingsseite: Starttempo 10 nach dem Einlaufen", "LAEUFT".equals(r.c.st) && r.c.tSpeed > 9.5f, String.format("%s Soll %.1f", r.c.st, r.c.tSpeed));
+            CoreSzenarien d = new CoreSzenarien(); d.run(0.4);
+            d.c.uiView = ""; d.c.topPkg = "org.jellyfin.mobile";
+            for (int i = 0; i < 20; i++) d.c.hwKey(KeyReader.K_SPEED_UP);   // am Drehregler 3.0 eingestellt
+            d.c.hwKey(KeyReader.K_GO); d.run(3.4); d.run(25);
+            t("Grüne Taste über einer App: am Drehregler gesetztes Starttempo bleibt", "LAEUFT".equals(d.c.st) && Math.abs(d.c.tSpeed - 3.0f) < 0.06, String.format("%s Soll %.1f", d.c.st, d.c.tSpeed));
+        }
         { // 13 Watchdog begrenzt auch die Steigung
             CoreSzenarien s = new CoreSzenarien(); s.load("homberg-runde", 4200); s.startRun();
             int k = s.firstClimb(4); s.runTo(s.c.rp.a[k] - 400); s.lease = false; s.run(62);

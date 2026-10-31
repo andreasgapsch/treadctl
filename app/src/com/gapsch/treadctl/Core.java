@@ -546,7 +546,7 @@ public class Core implements Runnable {
         JSONObject sum = summary();
         lastSummary = sum;
         try { java.nio.file.Files.write(new File(ctx.getFilesDir(), "letzter-lauf.json").toPath(), sum.toString().getBytes("UTF-8")); } catch (Throwable e) {}   // nicht nur im RAM
-        resetRun(); st = BEREIT; lastStopAt = clock(); tIncl = 0f; tSpeed = HOLD_SPEED; prog = null; progType = null; segs = null; rp = null; endTimer = -1; note = ""; err = "";
+        resetRun(); st = BEREIT; lastStopAt = clock(); tIncl = 0f; tSpeed = HOLD_SPEED; dialSpeed = dialIncl = false; prog = null; progType = null; segs = null; rp = null; endTimer = -1; note = ""; err = "";
         // ueber den Schreib-Thread (nach einem noch laufenden Schreiben), kurz darauf warten: danach gibt es sicher keinen Laufstand mehr
         try { io.submit(new Runnable() { public void run() { try { snapFile().delete(); } catch (Throwable e) {} } }).get(800, java.util.concurrent.TimeUnit.MILLISECONDS); } catch (Throwable e) {}
         log("ende " + from, 0);
@@ -578,7 +578,7 @@ public class Core implements Runnable {
                     resetRun();
                     new Thread(new Runnable() { public void run() { AppHygiene.trim(ctx); } }).start();   // Speicher fuer Musik und Videos waehrend des Laufs
                     bus.sendEvent(A_START);
-                    st = LAEUFT; pausedAt = 0; src = from; note = ""; appBlocked = false; appPendS = appPendI = -1;
+                    st = LAEUFT; pausedAt = 0; src = from; note = ""; appBlocked = false; appPendS = appPendI = -1; dialSpeed = dialIncl = false;
                     annKm = 0; annKmT = 0; annSeg = -1; annRoute = -1; ghostAt = 0;
                     beginHold(tSpeed);
                     bus.putFloat(A_SPEED, tSpeed); bus.putFloat(A_INCL, tIncl);
@@ -826,6 +826,10 @@ public class Core implements Runnable {
     /** Ansicht der eigenen Oberflaeche (bei jeder Abfrage gemeldet) und ob ihre Startseite gerade vorne ist. */
     volatile String uiView = ""; volatile long uiViewAt = 0;
     boolean homeShown() { return "home".equals(uiView) && clock() - uiViewAt < 5000 && "com.gapsch.treadctl".equals(topPkg); }
+    /** Eine Trainingsseite der eigenen Oberflaeche ist vorne (dort sieht man Programm und Starttempo). */
+    boolean trainingShown() { String v = uiView; return ("run".equals(v) || "interval".equals(v) || "zones".equals(v) || "strecke".equals(v)) && clock() - uiViewAt < 5000 && "com.gapsch.treadctl".equals(topPkg); }
+    /** Starttempo bzw. -steigung in BEREIT am Drehregler gesetzt (bewusst am Geraet); gilt bis zum naechsten Lauf. */
+    boolean dialSpeed, dialIncl;
     /** Taste oder Drehregler der Konsole (aus KeyReader). STOP wirkt immer und sofort. */
     void hwKey(int code) {
         if (code == KeyReader.K_STOP) { armAt = 0; hwStartAt = 0; stopNow("taste"); log("taste stop", speed); return; }   // erst STOP, dann Logbuch
@@ -837,9 +841,14 @@ public class Core implements Runnable {
                     if (hwStartAt > 0) return;
                     if (pulled != 0 || safe != 1 || photoLock()) { log("taste start ignoriert (Schlüssel/Sperre)", 0); return; }
                     if (BEREIT.equals(st) || PAUSE.equals(st)) {
-                        if (BEREIT.equals(st) && homeShown()) {   // Startseite vorne: Schnellstart, nie ein zuvor geladenes Training
-                            prog = null; progType = null; segs = null; rp = null; tSpeed = HOLD_SPEED; tIncl = 0f;
-                            log("taste schnellstart", 0);
+                        // Sicherheit: Programm und Starttempo nur, wenn die Trainingsseite vorne ist. Sonst (Startseite, andere App)
+                        // freier Lauf mit 1 km/h ohne Hochfahren; nur am Drehregler selbst gesetzte Startwerte bleiben.
+                        if (BEREIT.equals(st) && !trainingShown()) {
+                            float was = tSpeed;
+                            prog = null; progType = null; segs = null; rp = null;
+                            if (!dialSpeed) tSpeed = HOLD_SPEED;
+                            if (!dialIncl) tIncl = 0f;
+                            log("taste schnellstart" + (homeShown() ? "" : " (keine Trainingsseite vorne)") + (was != tSpeed ? " statt " + was : ""), tSpeed);
                         }
                         hwResume = PAUSE.equals(st); armAt = clock(); hwStartAt = armAt + 3000;
                         note = "Band läuft in 3 s an · STOP bricht ab"; log("taste start", 0);
@@ -851,6 +860,7 @@ public class Core implements Runnable {
                     float d = code == KeyReader.K_SPEED_UP ? 0.1f : -0.1f;
                     manual("taste"); rampTarget = -1; endHold(); freeRun(tSpeed + d);
                     applySpeed(Math.max(S_MIN, tSpeed + d), "taste"); routeSpeedOffset();
+                    if (BEREIT.equals(st)) dialSpeed = true;
                 } else if (code == KeyReader.K_INCL_UP || code == KeyReader.K_INCL_DOWN) {
                     // Drehregler liefert rund 3 Impulse je Raste: 0.5 % je Raste
                     int dir = code == KeyReader.K_INCL_UP ? 1 : -1;
@@ -858,6 +868,7 @@ public class Core implements Runnable {
                     if (++inclPulses < 3) return;
                     inclPulses = 0;
                     manual("taste"); applyIncl(tIncl + 0.5f * dir, "taste"); routeInclOffset();
+                    if (BEREIT.equals(st)) dialIncl = true;
                 }
             } catch (Throwable e) { log("taste fehler " + e, 0); }
         }

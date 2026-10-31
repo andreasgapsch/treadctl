@@ -62,7 +62,9 @@
   M.cmd = function (a, x) {
     var body = { a: a }; if (x) for (var k in x) body[k] = x[k];
     var p = api.demo ? Promise.resolve(demoCmd(a, body)) : api.req('POST', '/api/media/cmd', body);
+    var t0 = Date.now();
     return p.then(function (r) {
+      try { console.info('TreadMedia UI ' + a + ' -> ' + JSON.stringify(r) + ' in ' + (Date.now() - t0) + ' ms'); } catch (e) {}   // Fehlersuche im Systemprotokoll
       M.poll();
       if (r && r.ok === false && r.error !== 'start') TX.toast('Wiedergabe: ' + (r.error || 'nicht ausgeführt'));
       return r;

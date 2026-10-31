@@ -56,7 +56,7 @@
           '<h2>' + esc(m.name) + '</h2><div class="rsub">' + esc([m.ort, m.datum ? 'Lauf ' + m.datum : m.importiert ? 'importiert ' + m.importiert : ''].filter(Boolean).join(' · ') || ' ') + '</div>' +
           '<div class="rkp"><span><b>' + R.km(m.d) + '</b> km</span><span class="up">' + I('up') + '<b>' + Math.round(m.up || 0) + '</b> m</span><span class="dn">' + I('down') + '<b>' + Math.round(m.down || 0) + '</b> m</span>' +
           '<span class="ls">' + (lr ? 'zuletzt ' + TX.dshort(lr.ts) + ' · ' + TX.time(lr.elapsed) : 'noch nicht gelaufen') + '</span></div></a>' +
-          (m.sample ? '' : '<button class="rdel" data-del="' + esc(m.id) + '" aria-label="' + esc(m.name) + ' löschen">' + I('trash') + '</button>') + '</div>';
+          '<button class="rdel" data-del="' + esc(m.id) + '" aria-label="' + esc(m.name) + ' löschen">' + I('trash') + '</button></div>';
       }).join('') + '<button class="card rnew" data-v="import"><span class="ri">' + I('dl') + '</span><b>GPX importieren</b><span>vom USB-Stick oder aus Downloads</span></button>';
       l.forEach(function (m) {
         var el = root.querySelector('[data-th="' + m.id + '"]'), ep = root.querySelector('[data-tp="' + m.id + '"]'); if (!el) return;
@@ -68,7 +68,11 @@
             TX.chart(ep, [{ pts: tp, min: lo - Math.max(20, (hi - lo) * 0.15), max: hi + 5, c: TX.ROUTE_C, dot: false, wd: 2, fill: 0.35 }], { pad: 2 }); }
         };
         if (m.thumb && m.thumb.length > 1) draw(m.thumb);
-        else R.get(m.id).then(function (r) { draw(R.thumb(r.pts, 160)); }, function () {});
+        // danach das Luftbild wie im Lauf (aus dem Zwischenspeicher sofort, sonst einmal aus den Kacheln)
+        R.get(m.id).then(function (r) {
+          if (!(m.thumb && m.thumb.length > 1)) draw(R.thumb(r.pts, 160));
+          return R.mapThumb(r, el.clientWidth || 360, el.clientHeight || 150);
+        }).then(function (u) { if (u && el.isConnected) el.innerHTML = '<img class="rmimg" src="' + u + '" alt="">'; }, function () {});
       });
     }
     function load() { R.list().then(function (l) { list = l; err = ''; render(); }, function (e) { err = 'Strecken nicht verfügbar: ' + (e && e.message || 'Fehler'); render(); }); }
@@ -76,7 +80,7 @@
       var d = e.target.closest('[data-del]');
       if (d) {
         var id = d.getAttribute('data-del'), m = list && list.filter(function (x) { return x.id === id; })[0];
-        if (m) confirmDlg('Strecke löschen?', '«' + m.name + '» wird aus der Bibliothek entfernt. Gelaufene Läufe bleiben im Verlauf.', 'Löschen', function () {
+        if (m) confirmDlg('Strecke löschen?', '«' + m.name + '» wird aus der Bibliothek entfernt' + (m.sample ? ' (Beispielstrecke)' : '') + '. Gelaufene Läufe bleiben im Verlauf.', 'Löschen', function () {
           R.del(id).then(function (r) { if (r && r.ok) { TX.toast('Strecke gelöscht'); load(); } else TX.toast('Nicht gelöscht: ' + (r && r.error || 'Fehler')); });
         });
         return;

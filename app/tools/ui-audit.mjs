@@ -1760,19 +1760,19 @@ if (!ONLY.length) {
       o && o.id === 'meine-seerunde' && o.n === 'Meine Seerunde' && o.art === 'trail' && o.pts > 1000 && h === '#/strecke/meine-seerunde' && ts.total > 0;
     return { ok, d: `Liste [${l.map(x => x.n + (x.usb ? ' (USB)' : '') + ' ' + x.s).join(', ')}]; defekt «${err.replace(/\s+/g, ' ').trim().slice(0, 60)}»; Vorschlag «${v.nm}» ${v.art}; gespeichert ${o && o.id} «${o && o.n}» ${o && o.art}, ${o && o.pts} Punkte, Höhe ${o && o.hoehe}; ${h}; Kacheln vorgeladen ${ts.total}` };
   }, false, true);
-  await flow('Strecke: Bibliothek zeigt Beispiele (Name, Ort, Distanz, Höhenmeter, Art, Abzeichen, Kartenvorschau, Profil); eigene Strecke löschbar mit Bestätigung, Beispiele nicht', async p => {
+  await flow('Strecke: Bibliothek zeigt Beispiele (Name, Ort, Distanz, Höhenmeter, Art, Abzeichen, Kartenvorschau, Profil); eigene Strecke löschbar mit Bestätigung, Beispiele ebenfalls (nur ausgeblendet)', async p => {
     await p.goto(BASE + '?demo=1&frozen=1#/strecken'); await p.waitForTimeout(800);
     await p.evaluate(async id => { const R = window.TX.rte, a = await R.get(id), c = JSON.parse(JSON.stringify(a)); c.id = 'meine-runde'; c.name = 'Meine Runde'; delete c.datum; c.importiert = '27.10.2026'; c.offiziell = false; c.thumb = R.thumb(c.pts, 120); await R.save(c); }, rFirst);
     await p.reload(); await p.waitForTimeout(1800);
     const cards = () => p.$$eval('.rwrap', e => e.map(x => ({ n: x.querySelector('h2').textContent, kp: x.querySelector('.rkp').textContent.replace(/\s+/g, ' ').trim(), b: Array.from(x.querySelectorAll('.rb')).map(b => b.textContent.trim()).join('/'),
-      del: !!x.querySelector('.rdel'), svg: !!x.querySelector('.rmini svg path'), prof: !!x.querySelector('.rmp svg path') })));
+      del: !!x.querySelector('.rdel'), svg: !!x.querySelector('.rmini svg path') || !!x.querySelector('.rmini img.rmimg'), prof: !!x.querySelector('.rmp svg path') })));
     const a = await cards(), fil = await p.$$eval('.filters a', e => e.map(x => x.textContent.trim()));
     await p.click('.rdel'); await p.waitForTimeout(200);
     const dlg = await p.evaluate(() => { const d = document.querySelector('[role=alertdialog]'); return d ? d.querySelector('h2').textContent + ' | ' + d.querySelector('.mut').textContent : ''; });
     await p.click('[data-c="ok"]'); await p.waitForTimeout(800);
     const b = await cards(), left = await p.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('tx.demo.routes.v1') || '{}')).length);
     const own = a.find(x => x.n === 'Meine Runde'), smp = a.filter(x => x.n !== 'Meine Runde');
-    const ok = a.length === RSAMPLES.length + 1 && own && own.del && /EIGENE/.test(own.b) && smp.length === RSAMPLES.length && smp.every(x => !x.del && /BEISPIEL/.test(x.b) && x.svg && x.prof && /\d+\.\d km\s*\d+ m\s*\d+ m/.test(x.kp)) &&
+    const ok = a.length === RSAMPLES.length + 1 && own && own.del && /EIGENE/.test(own.b) && smp.length === RSAMPLES.length && smp.every(x => x.del && /BEISPIEL/.test(x.b) && x.svg && x.prof && /\d+\.\d km\s*\d+ m\s*\d+ m/.test(x.kp)) &&
       fil.join('|') === `Alle ${RSAMPLES.length + 1}|Strasse ${a.filter(x => /STRASSE/.test(x.b)).length}|Trail ${a.filter(x => /TRAIL/.test(x.b)).length}|Eigene 1` && /Strecke löschen\?/.test(dlg) && b.length === RSAMPLES.length && left === 0;
     return { ok, d: `${a.length} Karten: ${a.map(x => `${x.n} [${x.b}] ${x.kp.slice(0, 26)}${x.del ? ' löschbar' : ''}`).join('; ')}; Filter [${fil.join(', ')}]; «${dlg.slice(0, 40)}» → ${b.length} Karten` };
   });
